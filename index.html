@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>微信大厅 · 全功能自愈版</title>
+    <title>微信大厅 · 网络抗闪断自愈版</title>
     <style>
         /* 微信官方官方视觉配色 */
         :root { 
@@ -44,6 +44,9 @@
         .left-header-info { flex: 1; overflow: hidden; }
         .left-header h2 { margin: 0; font-size: 1.1em; color: #111; }
         .left-header p { margin: 3px 0 0 0; font-size: 0.82em; color: var(--text-grey); }
+        .net-status { font-size: 0.82em; margin-top: 3px; font-weight: bold; }
+        .net-status.online { color: var(--wechat-green); }
+        .net-status.offline { color: #fa5151; }
 
         .voice-card { padding: 15px 20px; background: #ffffff; border-bottom: 1px solid #e5e5e5; }
         .status-box { padding: 10px; border-radius: 4px; background: #f8f9fa; text-align: center; font-weight: bold; font-size: 0.9em; border: 1px solid #e5e5e5; }
@@ -111,7 +114,7 @@
         .emoji-picker { position: absolute; bottom: 150px; left: 25px; background: white; border: 1px solid #e5e5e5; padding: 12px; border-radius: 4px; display: none; grid-template-columns: repeat(8, 1fr); gap: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); z-index: 100; width: 300px; max-height: 210px; overflow-y: auto; }
         .emoji-picker span { cursor: pointer; font-size: 1.4em; text-align: center; }
 
-        /* 手机端自适应边界适配 */
+        /* 手机端锁死边界自适应适配 */
         @media (max-width: 768px) {
             .wechat-container { position: absolute; inset: 0; width: 100vw; height: 100vh; max-height: none; max-width: none; flex-direction: column; }
             .left-panel { width: 100%; height: auto; flex: none; border-right: none; border-bottom: 1px solid #e5e5e5; }
@@ -166,7 +169,7 @@
                 <div class="left-header-info">
                     <h2>微信大厅</h2>
                     <p>房间号: <span id="room-id-span" style="color: var(--wechat-green); font-weight: bold;">-</span></p>
-                    <p>我的昵称: <span id="my-id" style="font-weight: bold; color: #555;">设置中...</span></p>
+                    <p class="net-status offline" id="net-status-text">🔴 公屏网络：加载中...</p>
                 </div>
             </div>
             
@@ -206,25 +209,22 @@
     </div>
 
     <script>
-        // === 1. 核心自愈：国内三大骨干网 CDN 智能容灾轮询总线 ===
-        // 彻底解决由于部分网络慢、加载延迟引起的 window.mqtt 未定义崩溃
+        // === 1. 国内三大骨干网 CDN 智能容灾轮询链 ===
         const cdnChain = [
-            "https://lib.baomitu.com/mqtt/4.3.7/mqtt.min.js",      // 360 爆米图大厂骨干网（国内秒开级）
-            "https://cdn.staticfile.org/mqtt/4.3.7/mqtt.min.js",   // 七牛云国内静态镜像
-            "https://npm.elemecdn.com/mqtt@4.3.7/dist/mqtt.min.js" // 阿里巴巴全网加速站
+            "https://lib.baomitu.com/mqtt/4.3.7/mqtt.min.js",      
+            "https://cdn.staticfile.org/mqtt/4.3.7/mqtt.min.js",   
+            "https://npm.elemecdn.com/mqtt@4.3.7/dist/mqtt.min.js" 
         ];
         
         let currentCdnIndex = 0;
         function loadMqttScript() {
             if (currentCdnIndex >= cdnChain.length) {
-                document.getElementById('login-submit-btn').innerText = "⛔ 网络受阻，请尝试切换移动4G/5G流量并刷新";
+                document.getElementById('login-submit-btn').innerText = "⛔ 网络受阻，请尝试切换手机流量并刷新";
                 return;
             }
             const script = document.createElement('script');
             script.src = cdnChain[currentCdnIndex];
             script.onload = () => {
-                console.log(`通信网载入成功 -> 节点 [${currentCdnIndex}]`);
-                // 核心组件加载加载成功，瞬间激活第一关登录按钮！
                 const loginSubmit = document.getElementById('login-submit-btn');
                 if(loginSubmit) {
                     loginSubmit.innerText = "进入大厅畅聊";
@@ -232,15 +232,14 @@
                 }
             };
             script.onerror = () => {
-                console.warn(`节点 [${currentCdnIndex}] 连接超时，正在秒切下一路国内备用加速信道...`);
                 currentCdnIndex++;
                 loadMqttScript(); 
             };
             document.head.appendChild(script);
         }
-        loadMqttScript(); // 立刻拉起自愈链
+        loadMqttScript(); 
 
-        const systemPresets = ['🐶', '🐱', '🐼', '🦊', '🐻', '🦁', '🐸', '常规'];
+        const systemPresets = ['🐶', '🐱', '🐼', '🦊', '🐻', '🦁', '🐸', '🦁'];
         let selectedAvatarType = 'preset';
         let selectedAvatarValue = systemPresets[0];
         
@@ -281,7 +280,7 @@
             });
         }
 
-        // ================= 网络核心底层配置 =================
+        // ================= 网络WebRTC核心配置 =================
         const rtcConfig = {
             iceServers: [
                 { urls: 'stun:stun.aliyun.com:3478' },
@@ -330,7 +329,6 @@
             localStorage.setItem(key, JSON.stringify(logs));
         }
 
-        // 刷新瞬间复活历史数据
         function loadRoomLocalHistory() {
             let key = getLocalStorageLogKey(); let logs = [];
             try { logs = JSON.parse(localStorage.getItem(key)) || []; } catch(e) { logs = []; }
@@ -353,10 +351,9 @@
             localStorage.setItem('wechat_room_username', myId);
             localStorage.setItem('wechat_room_avatar', myAvatar);
 
-            ROOM_TOPIC = 'wechat-lobby-china-isolated-room-v10/' + roomId;
+            ROOM_TOPIC = 'wechat-lobby-china-isolated-room-v11/' + roomId;
 
             document.getElementById('room-id-span').innerText = roomId;
-            document.getElementById('my-id').innerText = myId;
             document.getElementById('room-title').innerText = `大群聊 - 房间 ${roomId}`;
             document.getElementById('login-overlay').style.display = 'none';
 
@@ -376,7 +373,6 @@
             return Promise.reject(new Error("NotSupportedError"));
         }
 
-        // 麦克风多级自愈直连内核
         window.joinGlobalVoice = async function() {
             if (localStream) return;
             errorLogBox.style.display = 'none';
@@ -388,7 +384,7 @@
             try {
                 localStream = await crossBrowserGetUserMedia({ audio: true });
             } catch (e1) {
-                console.warn("一级录音捕获过载，执行无特效单声道盲降方案...", e1);
+                console.warn("音频捕获异常，执行单声道盲降方案...", e1);
                 try {
                     localStream = await crossBrowserGetUserMedia({ audio: { echoCancellation: false, noiseSuppression: false } });
                 } catch (e2) {
@@ -436,17 +432,41 @@
             reader.readAsDataURL(file);
         }
 
-        // MQTT直连驱动
+        // === 2. MQTT 直连引擎（注入核心激进重连机制） ===
         window.mqttClient = null;
         function initMqttChannel() {
-            window.mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
+            const statusText = document.getElementById('net-status-text');
+
+            // 注入高级自愈连接配置
+            const mqttOptions = {
+                keepalive: 10,            // 10秒超短网络活性探针，高频逼迫基站维持信道
+                reconnectPeriod: 1000,    // 遭遇闪断后，每 1 秒在后台疯狂自愈重连
+                connectTimeout: 5000,
+                clean: true
+            };
+
+            window.mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', mqttOptions);
+            
             window.mqttClient.on('connect', () => {
-                logSystem(`已成功连入房间 [${roomId}]！打字发图功能已就绪。`);
+                statusText.innerText = "🟢 公屏网络：已连接";
+                statusText.className = "net-status online";
+
                 window.mqttClient.subscribe(`${ROOM_TOPIC}/chat`);
                 window.mqttClient.subscribe(`${ROOM_TOPIC}/presence`);
                 window.mqttClient.subscribe(`${ROOM_TOPIC}/user/${myId}`);
                 publishPresence({ type: 'join', id: myId, avatar: myAvatar, wantsVoice: false, ip: myIpAddr });
                 renderUsersUI();
+            });
+
+            // 监听网络彻底断开或波动状态
+            window.mqttClient.on('close', () => {
+                statusText.innerText = "🔴 公屏网络：已断开，正在自愈...";
+                statusText.className = "net-status offline";
+            });
+
+            window.mqttClient.on('error', () => {
+                statusText.innerText = "🔴 公屏网络：连线受阻重连中...";
+                statusText.className = "net-status offline";
             });
 
             window.mqttClient.on('message', async (topic, message) => {
@@ -525,7 +545,6 @@
 
         function printError(text) { errorLogBox.innerText = text; errorLogBox.style.display = 'block'; }
 
-        // 触屏解冻
         function forcePlayAllAudios() {
             if(!audioContainer) return;
             const audios = audioContainer.getElementsByTagName('audio');
@@ -553,21 +572,30 @@
         function sendDirectMsg(targetId, data) { if(window.mqttClient && window.mqttClient.connected) window.mqttClient.publish(`${ROOM_TOPIC}/user/${targetId}`, JSON.stringify(data)); }
         window.addEventListener('beforeunload', () => { publishPresence({ type: 'leave', id: myId }); });
 
+        // === 3. 微信对话与发送核心保护机制 ===
         function handleKeyPress(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTextMsg(); } }
         
         function sendTextMsg() {
             const text = msgInput.value.trim(); if (!text) return;
+            
+            // 【核心修复防护】：如果当前信道已经断开，强力拦截并进行震慑提示，保留输入框内容，防止丢字
+            if (!window.mqttClient || !window.mqttClient.connected) {
+                alert("⚠️ 提示：当前公屏网络正因国内基站信号波动处于重连自愈中，请稍候 1-2 秒，等状态灯变绿后再发消息！");
+                return;
+            }
+
             logMessage(text, 'me', myId, myAvatar);
-            if(window.mqttClient && window.mqttClient.connected) window.mqttClient.publish(`${ROOM_TOPIC}/chat`, JSON.stringify({ from: myId, avatar: myAvatar, msgType: 'text', content: text }));
+            window.mqttClient.publish(`${ROOM_TOPIC}/chat`, JSON.stringify({ from: myId, avatar: myAvatar, msgType: 'text', content: text }));
             msgInput.value = '';
         }
 
         function sendImage(input) {
+            if (!window.mqttClient || !window.mqttClient.connected) return alert('⚠️ 网络连接重连中，请变绿灯后再上传图片！');
             const file = input.files[0]; if (!file || file.size > 2 * 1024 * 1024) return alert('⚠️ 图片不能超过 2MB！');
             const r = new FileReader();
             r.onload = function(e) {
                 const base64 = e.target.result; logImage('我', base64, 'me', myAvatar);
-                if(window.mqttClient && window.mqttClient.connected) window.mqttClient.publish(`${ROOM_TOPIC}/chat`, JSON.stringify({ from: myId, avatar: myAvatar, msgType: 'image', content: base64 }));
+                window.mqttClient.publish(`${ROOM_TOPIC}/chat`, JSON.stringify({ from: myId, avatar: myAvatar, msgType: 'image', content: base64 }));
             };
             r.readAsDataURL(file); input.value = '';
         }
