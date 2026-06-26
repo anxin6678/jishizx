@@ -14,7 +14,141 @@
         input[type="text"] { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
         button { padding: 10px 20px; border: none; border-radius: 5px; background: var(--primary); color: white; cursor: pointer; font-weight: bold; transition: 0.3s; }
         button:hover { opacity: 0.8; }
-        button.danger { background: #dc3545; }
+const socket = io();
+const chatBox = document.getElementById('chat-box');
+const msgInput = document.getElementById('msg-input');
+const statusDiv = document.getElementById('status');
+const audioContainer = document.getElementById('audio-container');
+const joinVoiceBtn = document.getElementById('join-voice-btn');
+
+let localStream = null;
+const peers = {}; // 存储所有 P2P 连接 { socketId: RTCPeerConnection }
+
+// WebRTC 配置 (使用 Google 的免费 STUN 服务器)
+const rtcConfig = {
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+};
+
+// --- 1. 文字聊天与基础状态 ---
+
+socket.on('user-count', (count) => {
+    const voiceStatus = localStream ? "语音已连接" : "语音未开启";
+    statusDiv.innerText = `当前在线人数: ${count} | ${voiceStatus}`;
+});
+
+function sendMessage() {
+    const text = msgInput.value.trim();
+    if (text) {
+        socket.emit('chat-message', text);
+        msgInput.value = '';
+    }
+}
+
+socket.on('chat-message', (data) => {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `message ${data.id === socket.id ? 'self' : 'other'}`;
+    const prefix = data.id === socket.id ? '我' : `用户 ${data.id.substring(0,4)}`;
+    msgDiv.innerText = `[${prefix}]: ${data.text}`;
+    chatBox.appendChild(msgDiv);
+    chatBox.scrollTop = chatBox.scrollHeight;
+});
+
+// --- 2. 多人语音逻辑 (WebRTC Mesh) ---
+
+joinVoiceBtn.addEventListener('click', async () => {
+    if (localStream) return; // 已经加入了
+
+    try {
+        // 请求麦克风权限
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        joinVoiceBtn.innerText = "已加入语音";
+        joinVoiceBtn.style.background = "green";
+        statusDiv.innerText = statusDiv.innerText.replace("语音未开启", "语音已连接");
+        
+        // 告诉服务器我已经准备好接收连接了 (利用重新发送一次连接事件模拟)
+        socket.emit('disconnect'); // 强制刷新状态的简易做法
+        socket.connect();
+
+    } catch (err) {
+        alert('无法访问麦克风，请检查浏览器权限！');
+        console.error(err);
+    }
+});
+
+// 创建 P2P 连接的公共函数
+function createPeerConnection(targetUserId) {
+    const pc = new RTCPeerConnection(rtcConfig);
+    
+    // 如果我有麦克风流，加进去
+    if (localStream) {
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+    }
+
+    // 发现 ICE 候选者时，发给对方
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit('webrtc-ice-candidate', { target: targetUserId, candidate: event.candidate });
+        }
+    };
+
+    // 接收到对方的音频流时，播放出来
+    pc.ontrack = (event) => {
+        let audioItem = document.getElementById(`audio-${targetUserId}`);
+        if (!audioItem) {
+            audioItem = document.createElement('audio');
+            audioItem.id = `audio-${targetUserId}`;
+            audioItem.autoplay = true;
+            audioContainer.appendChild(audioItem);
+        }
+        audioItem.srcObject = event.streams[0];
+    };
+
+    peers[targetUserId] = pc;
+    return pc;
+}
+
+// 有新用户加入，作为发起方(Caller)建立连接
+socket.on('user-joined', async (userId) => {
+    if (!localStream) return; // 只有自己开启了语音，才去连别人
+    
+    const pc = createPeerConnection(userId);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit('webrtc-offer', { target: userId, offer: offer });
+});
+
+// 收到 Offer，作为接收方(Callee)回应 Answer
+socket.on('webrtc-offer', async (data) => {
+    if (!localStream) return; 
+
+    const pc = createPeerConnection(data.caller);
+    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    socket.emit('webrtc-answer', { target: data.caller, answer: answer });
+});
+
+// 收到 Answer
+socket.on('webrtc-answer', async (data) => {
+    const pc = peers[data.caller];
+    if (pc) await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+});
+
+// 收到 ICE 候选者
+socket.on('webrtc-ice-candidate', async (data) => {
+    const pc = peers[data.caller];
+    if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+});
+
+// 用户离开，清理连接和音频
+socket.on('user-left', (userId) => {
+    if (peers[userId]) {
+        peers[userId].close();
+        delete peers[userId];
+    }
+    const audioItem = document.getElementById(`audio-${userId}`);
+    if (audioItem) audioItem.remove();
+});        button.danger { background: #dc3545; }
         button.success { background: #28a745; }
         #chat-box { height: 300px; border: 1px solid #eee; border-radius: 5px; overflow-y: auto; padding: 10px; margin-bottom: 10px; background: #fafafa; }
         .msg { margin-bottom: 8px; line-height: 1.4; }
