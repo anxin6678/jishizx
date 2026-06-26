@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>微信大厅 · 国内特调丝滑版</title>
+    <title>微信大厅 · 全功能修复版</title>
     <script src="https://cdn.jsdelivr.net/npm/mqtt@5.5.1/dist/mqtt.min.js"></script>
     <style>
+        /* 微信官方经典配色 */
         :root { 
             --wechat-green: #07c160; 
             --wechat-bg: #f3f3f3; 
@@ -18,9 +19,10 @@
         * { box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #e9e9e9; color: var(--text-main); margin: 0; padding: 0; height: 100vh; display: flex; justify-content: center; align-items: center; }
         
+        /* 微信全屏主容器 */
         .wechat-container { width: 100vw; height: 100vh; max-width: 1100px; max-height: 850px; background: var(--wechat-bg); display: flex; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-radius: 4px; overflow: hidden; }
 
-        /* 左侧分栏 */
+        /* 左侧分栏：控制中心与在线列表 */
         .left-panel { width: 320px; background: var(--wechat-panel-bg); border-right: 1px solid #e5e5e5; display: flex; flex-direction: column; }
         .left-header { padding: 25px 20px; border-bottom: 1px solid #e5e5e5; background: #f2f2f2; }
         .left-header h2 { margin: 0; font-size: 1.2em; color: #111; }
@@ -37,6 +39,9 @@
         button.we-btn.warn:hover { background: #e5e5e5; }
         button.we-btn.fix { background: #fa5151; color: white; margin-top: 8px; display: none; }
 
+        /* 可视化错误诊断打印区 */
+        .error-log-box { display: none; margin-top: 10px; padding: 8px 10px; background: #fff5f5; border: 1px solid #ffcccc; border-radius: 4px; color: #fa5151; font-size: 0.82em; line-height: 1.4; word-break: break-all; }
+
         .member-section { flex: 1; padding: 15px 20px; display: flex; flex-direction: column; min-height: 0; }
         .member-title { font-size: 0.85em; color: var(--text-grey); margin-bottom: 10px; }
         .users-grid { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
@@ -46,7 +51,7 @@
         .user-pill.me .user-avatar { background: var(--wechat-green); }
         .user-name { font-size: 0.95em; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-        /* 右侧大聊天视窗 */
+        /* 右侧大聊天视窗区 */
         .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--wechat-bg); }
         .right-header { height: 62px; background: var(--wechat-panel-bg); border-bottom: 1px solid #e5e5e5; display: flex; align-items: center; padding: 0 25px; font-weight: bold; font-size: 1.1em; }
 
@@ -98,8 +103,8 @@
         
         <div class="left-panel">
             <div class="left-header">
-                <h2>微信大厅 · 国内增强版</h2>
-                <p>我的ID: <span id="my-id">正在接入专线...</span></p>
+                <h2>微信大厅 · 极速自愈版</h2>
+                <p>我的ID: <span id="my-id">正在接入安全专线...</span></p>
             </div>
             
             <div class="voice-card">
@@ -107,6 +112,8 @@
                 <button id="btn-join" class="we-btn primary" onclick="joinGlobalVoice()">🚀 开启麦克风说话</button>
                 <button id="btn-mute" class="we-btn warn" style="display: none;" onclick="toggleMute()">🎙️ 静音麦克风</button>
                 <button id="apple-fix-btn" class="we-btn primary fix" onclick="unlockAppleAudio()">🔊 苹果用户听不见点此激活声音</button>
+                
+                <div id="error-log-box" class="error-log-box"></div>
             </div>
             
             <div class="member-section">
@@ -138,12 +145,12 @@
     <div id="audio-container"></div>
 
     <script>
-        // === 国内特调：顶级大厂高速 STUN 穿透服务器配置 ===
+        // 国内顶级大厂云端高速 WebRTC 穿透节点
         const rtcConfig = {
             iceServers: [
-                { urls: 'stun:stun.aliyun.com:3478' },  // 阿里云（国内最稳）
-                { urls: 'stun:stun.baidu.com:3478' },   // 百度
-                { urls: 'stun:stun.360.cn:3478' }      // 360安全节点
+                { urls: 'stun:stun.aliyun.com:3478' },
+                { urls: 'stun:stun.baidu.com:3478' },
+                { urls: 'stun:stun.360.cn:3478' }
             ]
         };
 
@@ -153,17 +160,17 @@
         let localStream = null;
         let isMuted = false;
         
-        // 核心存储结构
-        const onlineUsers = {}; // 在线人员名单 { userId: { wantsVoice: false } }
-        const rtcPeers = {};    // 存放所有原生 WebRTC 连接对象
+        const onlineUsers = {}; 
+        const rtcPeers = {};    
 
         const chatBox = document.getElementById('chat-box');
         const usersGrid = document.getElementById('users-grid');
         const audioContainer = document.getElementById('audio-container');
         const msgInput = document.getElementById('msg-input');
         const voiceStatusBox = document.getElementById('voice-status-box');
+        const errorLogBox = document.getElementById('error-log-box');
 
-        // === 1. 表情面板 ===
+        // 表情初始化
         const emojis = ['😀','😂','🥰','😎','😭','😡','🥳','🤔','👍','👎','❤️','🔥','🎉','👀','🐶','🐱','✨','💯'];
         const emojiPicker = document.getElementById('emoji-picker');
         emojis.forEach(e => {
@@ -174,19 +181,17 @@
         function toggleEmojiPicker() { emojiPicker.style.display = (emojiPicker.style.display === 'grid') ? 'none' : 'grid'; }
         document.addEventListener('click', (e) => { if (!e.target.closest('.tool-bar-icons') && emojiPicker) emojiPicker.style.display = 'none'; });
 
-        // === 2. 初始化 MQTT (直连国内优化的 WSS 专线) ===
+        // 连接 MQTT 国内专线
         const mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
 
         mqttClient.on('connect', () => {
             document.getElementById('my-id').innerText = myId;
-            logSystem(`成功接入公屏文字网络！你已与大厅完成同步。`);
+            logSystem(`已接入公屏网络！您现在可以直接打字发图交互。`);
             
-            // 订阅三大核心频道：公屏聊天、人员状态变动、个人专属信令信箱
             mqttClient.subscribe(`${BASE_TOPIC}/chat`);
             mqttClient.subscribe(`${BASE_TOPIC}/presence`);
             mqttClient.subscribe(`${BASE_TOPIC}/user/${myId}`);
 
-            // 进大厅打卡下达上线通知
             publishPresence({ type: 'join', id: myId, wantsVoice: false });
             renderUsersUI();
         });
@@ -195,20 +200,16 @@
             try {
                 const data = JSON.parse(message.toString());
                 
-                // 频道 1：公共大厅聊天
                 if (topic === `${BASE_TOPIC}/chat`) {
                     if (data.from === myId) return;
                     if (data.msgType === 'text') logMessage(data.content, 'peer', data.from);
                     if (data.msgType === 'image') logImage(data.from, data.content, 'peer');
                 }
-                
-                // 频道 2：人员存活状态监测
                 else if (topic === `${BASE_TOPIC}/presence`) {
                     if (data.id === myId) return;
                     
                     if (data.type === 'join') {
                         onlineUsers[data.id] = { wantsVoice: data.wantsVoice };
-                        // 老人收到新人加入，立刻给他单独回一封确认信，顺便告诉他我的开麦状态
                         sendDirectMsg(data.id, { type: 'reply-presence', from: myId, wantsVoice: !!localStream });
                         logSystem(`群友 [${data.id}] 进入了聊天室`);
                         renderUsersUI();
@@ -217,7 +218,6 @@
                         if (!onlineUsers[data.id]) onlineUsers[data.id] = {};
                         onlineUsers[data.id].wantsVoice = data.wantsVoice;
                         renderUsersUI();
-                        // 如果对方开启了语音，且我也开启了语音，且我是主动方（通过ID字典序决定谁拨打，防止重复碰撞）
                         if (data.wantsVoice && localStream && myId > data.id) {
                             initiateVoiceCall(data.id);
                         }
@@ -226,8 +226,6 @@
                         cleanupUser(data.id);
                     }
                 }
-                
-                // 频道 3：个人专属信箱 (处理原生 WebRTC 握手信令)
                 else if (topic === `${BASE_TOPIC}/user/${myId}`) {
                     const fromPeer = data.from;
                     
@@ -248,17 +246,16 @@
                         if (rtcPeers[fromPeer]) await rtcPeers[fromPeer].addIceCandidate(new RTCIceCandidate(data.candidate));
                     }
                 }
-            } catch(e) { console.error("信道解析有误:", e); }
+            } catch(e) {}
         });
 
-        // 定时心跳广播，确保国内移动端网络断线自动重连捞回
         setInterval(() => {
             if (mqttClient && mqttClient.connected) {
                 publishPresence({ type: 'join', id: myId, wantsVoice: !!localStream });
             }
-        }, 6000);
+        }, 5000);
 
-        // === 3. 原生 WebRTC 核心架构组 (摆脱 PeerJS 束缚) ===
+        // === 3. 稳健的原生 WebRTC 音频流对塞机制 ===
         function createRtcConnection(targetId) {
             if (rtcPeers[targetId]) return rtcPeers[targetId];
 
@@ -279,7 +276,7 @@
                     audioEl = document.createElement('audio');
                     audioEl.id = 'audio-' + targetId;
                     audioEl.setAttribute('autoplay', '');
-                    audioEl.setAttribute('playsinline', ''); // 苹果设备强效内联激活
+                    audioEl.setAttribute('playsinline', ''); 
                     audioContainer.appendChild(audioEl);
                 }
                 audioEl.srcObject = e.streams[0];
@@ -296,7 +293,6 @@
         }
 
         async function initiateVoiceCall(targetId) {
-            console.log(`📡 主动呼叫群友语音通道: ${targetId}`);
             const pc = createRtcConnection(targetId);
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
@@ -304,7 +300,6 @@
         }
 
         async function handleOfferSignal(fromPeer, offer) {
-            console.log(`📥 收到群友语音接入申请: ${fromPeer}`);
             const pc = createRtcConnection(fromPeer);
             await pc.setRemoteDescription(new RTCSessionDescription(offer));
             const answer = await pc.createAnswer();
@@ -312,35 +307,172 @@
             sendDirectMsg(fromPeer, { type: 'answer', from: myId, answer: answer });
         }
 
-        // === 4. 开启麦克风大厅模块 ===
+        // === 4. 开启麦克风大厅模块（深度修复与错误跟踪重构） ===
         async function joinGlobalVoice() {
             if (localStream) return;
+            errorLogBox.style.display = 'none';
+
+            // 【苹果 WebKit 核心破冰策略】：前置同步解锁音频上下文
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: { echoCancellation: true, noiseSuppression: true } 
-                });
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    const ctx = new AudioContext();
+                    ctx.resume();
+                }
+            } catch(e) {}
+
+            // 【环境审查拦截】
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                printError("浏览器拦截：非 HTTPS 安全网址，或当前浏览器已被系统禁言。请确保网址以 https:// 开头并使用手机自带浏览器打开！");
+                return;
+            }
+
+            try {
+                // 【兼容性降级策略】：精简复杂约束，使用最温和的原生参数请求硬件
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 
                 voiceStatusBox.innerText = "🟢 已接入群语音通话";
                 voiceStatusBox.className = "status-box active";
                 document.getElementById('btn-join').style.display = 'none';
                 document.getElementById('btn-mute').style.display = 'inline-block';
 
-                // 通知全网我开麦了
                 publishPresence({ type: 'voice-state-change', id: myId, wantsVoice: true });
 
-                // 对大厅里已经开麦的人逐一拨打电话
                 Object.keys(onlineUsers).forEach(pId => {
                     if (onlineUsers[pId].wantsVoice && myId > pId) initiateVoiceCall(pId);
                 });
-                logSystem('你的麦克风成功启用！');
+                logSystem('你的麦克风成功启用，大家现在能听到你说话了！');
             } catch (err) {
-                alert('⛔ 麦克风开启失败！请确保网址开头是 https://，并允许了浏览器麦克风权限！');
+                console.error("麦克风激活触发真实硬件错误:", err);
+                let msg = `激活失败 (${err.name}): `;
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    msg += "麦克风权限被拒绝！请点击浏览器地址栏左侧的 🔒 图标，手动允许麦克风权限后刷新网页。";
+                } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                    msg += "系统未检测到任何麦克风硬件设备，请确认耳机或麦克风已插好。";
+                } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                    msg += "麦克风正被其他后台程序（如微信电话、系统录音机）独占，请彻底退出后台其他语音应用后再试。";
+                } else {
+                    msg += err.message || "发生未知硬件死锁。";
+                }
+                printError(msg);
             }
+        }
+
+        function printError(text) {
+            errorLogBox.innerText = text;
+            errorLogBox.style.display = 'block';
         }
 
         function unlockAppleAudio() {
             const audios = audioContainer.getElementsByTagName('audio');
             for (let audio of audios) { audio.play().catch(e => {}); }
             document.getElementById('apple-fix-btn').style.display = 'none';
-            logSystem('🔊 苹果音频通道已强行唤醒打通！');
+            logSystem('🔊 苹果音频通道已通过手势强制唤醒打通！');
         }
+
+        function toggleMute() {
+            if (!localStream) return;
+            isMuted = !isMuted;
+            localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
+            const btn = document.getElementById('btn-mute');
+            if (isMuted) { btn.innerText = "body 已暂停说话"; btn.className = "we-btn primary"; } 
+            else { btn.innerText = "🎙️ 静音麦克风"; btn.className = "we-btn warn"; }
+        }
+
+        function cleanupUser(pId) {
+            if (rtcPeers[pId]) { rtcPeers[pId].close(); delete rtcPeers[pId]; }
+            if (onlineUsers[pId]) delete onlineUsers[pId];
+            const el = document.getElementById('audio-' + pId); if (el) el.remove();
+            renderUsersUI();
+            logSystem(`群友 [${pId}] 退出了聊天室`);
+        }
+
+        function publishPresence(data) { mqttClient.publish(`${BASE_TOPIC}/presence`, JSON.stringify(data)); }
+        function sendDirectMsg(targetId, data) { mqttClient.publish(`${BASE_TOPIC}/user/${targetId}`, JSON.stringify(data)); }
+
+        window.addEventListener('beforeunload', () => {
+            publishPresence({ type: 'leave', id: myId });
+        });
+
+        // === 6. 微信对话交互组件 ===
+        function handleKeyPress(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTextMsg(); } }
+        
+        function sendTextMsg() {
+            const text = msgInput.value.trim(); if (!text) return;
+            logMessage(text, 'me', myId);
+            mqttClient.publish(`${BASE_TOPIC}/chat`, JSON.stringify({ from: myId, msgType: 'text', content: text }));
+            msgInput.value = '';
+        }
+
+        function sendImage(input) {
+            const file = input.files[0]; if (!file || file.size > 2 * 1024 * 1024) return alert('⚠️ 图片不能超过 2MB！');
+            const r = new FileReader();
+            r.onload = function(e) {
+                const base64 = e.target.result;
+                logImage('我', base64, 'me');
+                mqttClient.publish(`${BASE_TOPIC}/chat`, JSON.stringify({ from: myId, msgType: 'image', content: base64 }));
+            };
+            r.readAsDataURL(file); input.value = '';
+        }
+
+        // === 7. 高仿微信聊天流气泡 DOM 生成器 ===
+        function logMessage(m, type, senderId) {
+            const wrapper = document.createElement('div'); wrapper.className = `msg-wrapper ${type}`;
+            const avatar = document.createElement('div'); avatar.className = 'user-avatar';
+            avatar.innerText = type === 'me' ? '我' : senderId.replace('User_', '').charAt(0);
+            const contentBox = document.createElement('div'); contentBox.className = 'msg-content-box';
+            if (type === 'peer') {
+                const author = document.createElement('div'); author.className = 'msg-author'; author.innerText = senderId;
+                contentBox.appendChild(author);
+            }
+            const bubble = document.createElement('div'); bubble.className = 'msg-bubble'; bubble.innerText = m;
+            contentBox.appendChild(bubble);
+            if (type === 'me') { wrapper.appendChild(contentBox); wrapper.appendChild(avatar); } 
+            else { wrapper.appendChild(avatar); wrapper.appendChild(contentBox); }
+            chatBox.appendChild(wrapper); chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function logImage(senderName, base64Data, type) {
+            const wrapper = document.createElement('div'); wrapper.className = `msg-wrapper ${type}`;
+            const avatar = document.createElement('div'); avatar.className = 'user-avatar';
+            avatar.innerText = type === 'me' ? '我' : senderName.replace('User_', '').charAt(0);
+            const contentBox = document.createElement('div'); contentBox.className = 'msg-content-box';
+            if (type === 'peer') {
+                const author = document.createElement('div'); author.className = 'msg-author'; author.innerText = senderName;
+                contentBox.appendChild(author);
+            }
+            const img = document.createElement('img'); img.src = base64Data; img.className = 'chat-img'; img.onclick = () => window.open(base64Data);
+            contentBox.appendChild(img);
+            if (type === 'me') { wrapper.appendChild(contentBox); wrapper.appendChild(avatar); } 
+            else { wrapper.appendChild(avatar); wrapper.appendChild(contentBox); }
+            chatBox.appendChild(wrapper);
+            setTimeout(() => { chatBox.scrollTop = chatBox.scrollHeight; }, 100);
+        }
+
+        function logSystem(m) { 
+            const div = document.createElement('div'); div.className = 'msg-system'; div.innerHTML = `<span>${m}</span>`;
+            chatBox.appendChild(div); chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function renderUsersUI() {
+            usersGrid.innerHTML = '';
+            usersGrid.appendChild(createUserPill(myId, true, !!localStream));
+            Object.keys(onlineUsers).forEach(id => {
+                usersGrid.appendChild(createUserPill(id, false, onlineUsers[id].wantsVoice));
+            });
+            const total = Object.keys(onlineUsers).length + 1;
+            document.getElementById('member-count-title').innerText = `在线群成员 (${total})`;
+            document.getElementById('room-title').innerText = `公共大厅大群聊 (${total})`;
+        }
+        
+        function createUserPill(id, isMe, hasVoice) {
+            const d = document.createElement('div'); d.className = `user-pill ${isMe ? 'me' : ''}`;
+            const a = document.createElement('div'); a.className = 'user-avatar';
+            a.innerText = id.replace('User_', '').charAt(0); 
+            const n = document.createElement('span'); n.className = 'user-name'; 
+            n.innerText = (isMe ? `${id} (我)` : id) + (hasVoice ? ' 🎙️' : '');
+            d.appendChild(a); d.appendChild(n); return d;
+        }
+    </script>
+</body>
+</html>
