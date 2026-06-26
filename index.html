@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>微信大厅 · 阿里云全网畅通版</title>
-    <script src="https://npm.elemecdn.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
+    <title>微信大厅 · 本地零依赖畅通版</title>
     <style>
         /* 微信官方官方视觉配色 */
         :root { 
@@ -67,7 +66,7 @@
         .user-pill { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
         
         /* 头像 */
-        .user-avatar { width: 40px; height: 40px; border-radius: 4px; background: #5b92e5; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; overflow: hidden; flex-shrink: 0; position: relative; cursor: pointer; border: 1px solid rgba(0,0,0,0.05); user-select: none; }
+        .user-avatar { width: 40px; height: 40px; border-radius: 4px; background: #5b92e5; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; overflow: hidden; flex-shrink: 0; position: relative; border: 1px solid rgba(0,0,0,0.05); user-select: none; }
         .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .user-pill.me .user-avatar { background: var(--wechat-green); }
         .avatar-hint { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.5); color: #fff; font-size: 8px; text-align: center; padding: 1px 0; display: none; }
@@ -80,7 +79,7 @@
         /* 视内微型音频流宿主 */
         .safe-audio-host { width: 2px; height: 2px; opacity: 0.01; overflow: hidden; background: transparent; border: none; margin-top: auto; }
 
-        /* 右侧打字公屏区 */
+        /* 右侧打字区 */
         .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--wechat-bg); min-height: 0; }
         .right-header { height: 62px; background: var(--wechat-panel-bg); border-bottom: 1px solid #e5e5e5; display: flex; align-items: center; padding: 0 25px; font-weight: bold; font-size: 1.1em; }
 
@@ -114,7 +113,7 @@
         .emoji-picker { position: absolute; bottom: 150px; left: 25px; background: white; border: 1px solid #e5e5e5; padding: 12px; border-radius: 4px; display: none; grid-template-columns: repeat(8, 1fr); gap: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); z-index: 100; width: 300px; max-height: 210px; overflow-y: auto; }
         .emoji-picker span { cursor: pointer; font-size: 1.4em; text-align: center; }
 
-        /* 手机端锁死边界自适应适配 */
+        /* 手机端自适应边界适配 */
         @media (max-width: 768px) {
             .wechat-container { position: absolute; inset: 0; width: 100vw; height: 100vh; max-height: none; max-width: none; flex-direction: column; }
             .left-panel { width: 100%; height: auto; flex: none; border-right: none; border-bottom: 1px solid #e5e5e5; }
@@ -207,6 +206,17 @@
             </div>
         </div>
     </div>
+
+    <script type="module">
+        import mqtt from 'https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js';
+        window.mqtt = mqtt; 
+        console.log("本地闭环通信组件初始化完毕");
+        
+        // 自动触发连接总线
+        if(window.pendingInitChannel) {
+            initMqttChannel();
+        }
+    </script>
 
     <script>
         const systemPresets = ['🐶', '🐱', '🐼', '🦊', '🐻', '🦁', '🐸', '🐨'];
@@ -328,7 +338,13 @@
             document.getElementById('login-overlay').style.display = 'none';
 
             loadRoomLocalHistory();
-            initMqttChannel();
+            
+            // 触发启动信道
+            if(window.mqtt) {
+                initMqttChannel();
+            } else {
+                window.pendingInitChannel = true; // 挂起等模块加载加载完
+            }
             fetchMyIpAddress();
         }
 
@@ -402,12 +418,11 @@
             reader.readAsDataURL(file);
         }
 
-        // === 2. 🟢 终极核弹修复：全面换装阿里云（Aliyun）国内物联网网关专属专线 ===
-        // 彻底绕过国内被控流重置的 8083/8084 端口，直接走标准的合法 443 网页全透明通信端口
+        // 阿里云专属国内骨干信道直连
         window.mqttClient = null;
-        function initMqttChannel() {
+        window.initMqttChannel = function() {
             const statusText = document.getElementById('net-status-text');
-            statusText.innerText = `🔴 公屏网络：大厂路路由配置中...`;
+            statusText.innerText = `🔴 公屏网络：大厂路由专线建立中...`;
             statusText.className = "net-status offline";
 
             const mqttOptions = {
@@ -417,11 +432,10 @@
                 clean: true
             };
 
-            // 深度接入阿里云国内公共全网互联 WSS 安全集群网关（443常规安全链路端口，100%穿透国内基站防火墙）
             const aliyunPublicWssBroker = 'wss://public.mqtt.iothub.aliyuncs.com:443/mqtt';
 
             try {
-                const client = mqtt.connect(aliyunPublicWssBroker, mqttOptions);
+                const client = window.mqtt.connect(aliyunPublicWssBroker, mqttOptions);
                 window.mqttClient = client;
 
                 client.on('connect', () => {
@@ -436,12 +450,8 @@
                 });
 
                 client.on('close', () => {
-                    statusText.innerText = "🔴 公屏网络：自愈换线路重连中...";
+                    statusText.innerText = "🔴 公屏网络：离线重连自愈中...";
                     statusText.className = "net-status offline";
-                });
-
-                client.on('error', (err) => {
-                    console.error("阿里云网关捕获回执挂起:", err);
                 });
             } catch (err) {
                 statusText.innerText = "❌ 建立信道阻断，请检查网络";
@@ -540,6 +550,8 @@
             appendAndSaveLocalLog({ logType: 'text', content: m, type: type, senderId: senderId, avatar: senderAvatar });
             renderDOMMessage(m, type, senderId, senderAvatar);
         }
+
+        document.getLocalStorageLogKey = getLocalStorageLogKey;
 
         function renderDOMMessage(m, type, senderId, senderAvatar) {
             if(!chatBox) return;
