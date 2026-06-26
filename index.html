@@ -243,3 +243,170 @@
                             if (pId !== myId && !knownPeers.has(pId)) connectToPeer(pId);
                         });
                     } else if (data.type === 'leave') {
+                        removeUser(conn.peer);
+                    }
+                } catch(e){}
+            });
+
+            conn.on('close', () => removeUser(conn.peer));
+        }
+
+        // === 4. 苹果设备关键特调：音频流管道渲染 ===
+        function setupMediaCall(call) {
+            mediaCalls[call.peer] = call;
+
+            call.on('stream', (remoteStream) => {
+                let audioElement = document.getElementById('audio-' + call.peer);
+                if (!audioElement) {
+                    audioElement = document.createElement('audio');
+                    audioElement.id = 'audio-' + call.peer;
+                    // 苹果特调属性：必须加 playsinline，允许在当前视窗强制解码音频
+                    audioElement.setAttribute('autoplay', '');
+                    audioElement.setAttribute('playsinline', ''); 
+                    audioContainer.appendChild(audioElement);
+                }
+                audioElement.srcObject = remoteStream;
+
+                // 苹果拦截核心捕获：如果自动播放失败，立刻亮起红色修复按钮
+                audioElement.play().catch(err => {
+                    console.warn("苹果系统拦截了远程声音自动播放，已触发安全兜底机制:", err);
+                    document.getElementById('apple-fix-btn').style.display = 'block';
+                });
+            });
+        }
+
+        // 苹果专属声音强制解锁激活器
+        function unlockAppleAudio() {
+            const audios = audioContainer.getElementsByTagName('audio');
+            for (let audio of audios) {
+                audio.play().catch(e => console.log("激活失败:", e));
+            }
+            document.getElementById('apple-fix-btn').style.display = 'none';
+            logSystem('🔊 苹果音频强制激活成功，现在你应该能听到声音了！');
+        }
+
+        // === 5. 开启麦克风逻辑 ===
+        async function joinGlobalVoice() {
+            if (localStream) return;
+            try {
+                // 启用降噪与回声消除配置
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: { echoCancellation: true, noiseSuppression: true } 
+                });
+                
+                voiceStatusBox.innerText = "✅ 已进入语音大厅 (麦克风开启中)";
+                voiceStatusBox.className = "status-box active";
+                document.getElementById('btn-join').style.display = 'none';
+                document.getElementById('btn-mute').style.display = 'inline-block';
+
+                // 将自己的声音打给目前所有已经在聊天室里的群友
+                for (let pId in dataConns) {
+                    if (!mediaCalls[pId]) {
+                        const call = peer.call(pId, localStream);
+                        setupMediaCall(call);
+                    }
+                }
+                logSystem('你的麦克风已成功接入，大家现在能听到你说话了。');
+            } catch (err) {
+                console.error(err);
+                alert('⛔ 麦克风开启失败！苹果用户请确保在手机【系统设置->Safari浏览器->麦克风】中没有关闭权限，且必须在外部浏览器（而非微信内）打开网址！');
+            }
+        }
+
+        function toggleMute() {
+            if (!localStream) return;
+            isMuted = !isMuted;
+            localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
+            const btn = document.getElementById('btn-mute');
+            if (isMuted) {
+                btn.innerText = "🔇 已静音自己"; btn.className = "danger";
+            } else {
+                btn.innerText = "🎙️ 静音麦克风"; btn.className = "warning";
+            }
+        }
+
+        function removeUser(pId) {
+            if (dataConns[pId]) { dataConns[pId].close(); delete dataConns[pId]; }
+            if (mediaCalls[pId]) { mediaCalls[pId].close(); delete mediaCalls[pId]; }
+            knownPeers.delete(pId);
+            const el = document.getElementById('audio-' + pId);
+            if (el) el.remove();
+            renderUsersUI();
+            logSystem(`用户 [${pId}] 离开了大厅`);
+        }
+
+        // 离线遗言告别广播
+        window.addEventListener('beforeunload', () => {
+            const msg = JSON.stringify({ type: 'leave' });
+            for (let id in dataConns) { try{ dataConns[id].send(msg); }catch(e){} }
+            if (peer) peer.destroy();
+        });
+
+        function broadcastRoomSync() {
+            const list = Object.keys(dataConns);
+            if (!list.length) return;
+            const data = JSON.stringify({ type: 'sync_peers', peers: list });
+            for (let id in dataConns) { try{ dataConns[id].send(data); }catch(e){} }
+        }
+
+        // === 6. 文字与图片发送模块（彻底解除 localStream 强绑定） ===
+        function sendTextMsg() {
+            const text = msgInput.value.trim();
+            if (!text) return;
+            
+            logMessage(`[我]: ${text}`, 'me');
+            
+            const data = JSON.stringify({ type: 'chat', text: text });
+            for (let id in dataConns) { try { dataConns[id].send(data); } catch(e){} }
+            msgInput.value = '';
+        }
+
+        function sendImage(input) {
+            const file = input.files[0];
+            if (!file) return;
+            if (file.size > 2 * 1024 * 1024) return alert('⚠️ 图片超过2MB会发送失败！');
+
+            const r = new FileReader();
+            r.onload = function(e) {
+                const base64 = e.target.result;
+                logImage('我', base64, 'me');
+                const data = JSON.stringify({ type: 'image', data: base64 });
+                for (let id in dataConns) { try { dataConns[id].send(data); } catch(e){} }
+            };
+            r.readAsDataURL(file);
+            input.value = '';
+        }
+
+        // === 7. 页面渲染小挂件 ===
+        function logMessage(m, t) {
+            const d = document.createElement('div'); d.className = `msg ${t}`; d.innerText = m;
+            chatBox.appendChild(d); chatBox.scrollTop = chatBox.scrollHeight;
+        }
+        function logImage(s, b, t) {
+            const d = document.createElement('div'); d.className = `msg ${t}`;
+            const n = document.createElement('div'); n.innerText = `[${s}]:`; n.style.marginBottom = '4px';
+            const i = document.createElement('img'); i.src = b; i.className = 'chat-img'; i.onclick = () => window.open(b);
+            d.appendChild(n); d.appendChild(i); chatBox.appendChild(d);
+            setTimeout(() => { chatBox.scrollTop = chatBox.scrollHeight; }, 150);
+        }
+        function logSystem(m) { logMessage(`— ${m} —`, 'system'); }
+
+        function renderUsersUI() {
+            usersGrid.innerHTML = '';
+            // 渲染自己
+            usersGrid.appendChild(createUserPill(myId, true));
+            // 渲染连接中的其他人
+            Object.keys(dataConns).forEach(id => {
+                usersGrid.appendChild(createUserPill(id, false));
+            });
+        }
+        function createUserPill(id, isMe) {
+            const d = document.createElement('div'); d.className = `user-pill ${isMe ? 'me' : ''}`;
+            const a = document.createElement('div'); a.className = 'user-avatar';
+            a.innerText = id.substring(id.indexOf('_')+1, id.indexOf('_')+2); 
+            const n = document.createElement('span'); n.innerText = isMe ? `${id} (我)` : id;
+            d.appendChild(a); d.appendChild(n); return d;
+        }
+    </script>
+</body>
+</html>
