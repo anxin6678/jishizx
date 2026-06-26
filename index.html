@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>微信大厅 · 双向调音尊享版</title>
+    <title>微信大厅 · 终极全端通杀版</title>
     <script src="https://cdn.jsdelivr.net/npm/mqtt@5.5.1/dist/mqtt.min.js"></script>
     <style>
         /* 微信官方官方视觉配色 */
@@ -18,13 +18,12 @@
         }
         * { box-sizing: border-box; }
         
-        /* 锁死外层视窗，防止全面屏手机橡皮筋回弹错位 */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #e9e9e9; color: var(--text-main); margin: 0; padding: 0; height: 100vh; width: 100vw; display: flex; justify-content: center; align-items: center; overflow: hidden; position: fixed; inset: 0; }
         
         /* 微信主容器 */
         .wechat-container { width: 100vw; height: 100vh; max-width: 1100px; max-height: 850px; background: var(--wechat-bg); display: flex; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-radius: 4px; overflow: hidden; }
 
-        /* 左侧分栏：控制中心与在线列表 */
+        /* 左侧分栏 */
         .left-panel { width: 320px; background: var(--wechat-panel-bg); border-right: 1px solid #e5e5e5; display: flex; flex-direction: column; flex-shrink: 0; }
         .left-header { padding: 25px 20px; border-bottom: 1px solid #e5e5e5; background: #f2f2f2; display: flex; align-items: center; gap: 15px; }
         .left-header-info { flex: 1; overflow: hidden; }
@@ -35,7 +34,6 @@
         .status-box { padding: 10px; border-radius: 4px; background: #f8f9fa; text-align: center; font-weight: bold; font-size: 0.9em; margin-bottom: 12px; border: 1px solid #e5e5e5; }
         .status-box.active { background: #eef9f2; color: var(--wechat-green); border-color: #c2eed5; }
         
-        /* 微信绿调音台控制滑块样式 */
         .slider-wrap { margin-top: 12px; font-size: 0.85em; color: #555; }
         .slider-wrap label { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: 500; }
         .slider-wrap input[type="range"] { width: 100%; accent-color: var(--wechat-green); cursor: pointer; margin: 2px 0; }
@@ -46,7 +44,7 @@
         button.we-btn.warn { background: #f5f5f5; color: #fa5151; border: 1px solid #e5e5e5; padding: 8px; }
         button.we-btn.warn:hover { background: #e5e5e5; }
 
-        .error-log-box { display: none; margin-top: 10px; padding: 8px 10px; background: #fff5f5; border: 1px solid #ffcccc; border-radius: 4px; color: #fa5151; font-size: 0.82em; line-height: 1.4; word-break: break-all; }
+        .error-log-box { display: none; margin-top: 10px; padding: 10px; background: #fff5f5; border: 1px solid #ffcccc; border-radius: 4px; color: #fa5151; font-size: 0.85em; line-height: 1.4; word-break: break-all; }
 
         .member-section { flex: 1; padding: 15px 20px; display: flex; flex-direction: column; min-height: 0; position: relative; }
         .member-title { font-size: 0.85em; color: var(--text-grey); margin-bottom: 10px; }
@@ -54,7 +52,7 @@
         
         .user-pill { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
         
-        /* 微信官方头像框 */
+        /* 头像 */
         .user-avatar { width: 40px; height: 40px; border-radius: 4px; background: #5b92e5; color: white; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: bold; text-transform: uppercase; overflow: hidden; flex-shrink: 0; position: relative; cursor: pointer; border: 1px solid rgba(0,0,0,0.05); }
         .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .user-pill.me .user-avatar { background: var(--wechat-green); }
@@ -65,10 +63,10 @@
         .user-name { font-size: 0.95em; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .user-ip { font-size: 0.75em; color: var(--text-grey); margin-top: 2px; }
 
-        /* 视内活跃音频流宿主 */
+        /* 视内活跃音频宿主 */
         .safe-audio-host { width: 2px; height: 2px; opacity: 0.01; overflow: hidden; background: transparent; border: none; margin-top: auto; }
 
-        /* 右侧独立图文公屏区 */
+        /* 右侧打字公屏区 */
         .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--wechat-bg); min-height: 0; }
         .right-header { height: 62px; background: var(--wechat-panel-bg); border-bottom: 1px solid #e5e5e5; display: flex; align-items: center; padding: 0 25px; font-weight: bold; font-size: 1.1em; }
 
@@ -99,18 +97,13 @@
         button.we-send-btn { background: #f5f5f5; color: var(--wechat-green); border: 1px solid #e5e5e5; padding: 6px 18px; border-radius: 4px; font-size: 0.9em; font-weight: 500; cursor: pointer; }
         button.we-send-btn:hover { background: #e5e5e5; }
 
-        /* 微信大容量多行翻翻页表情面板 */
         .emoji-picker { position: absolute; bottom: 150px; left: 25px; background: white; border: 1px solid #e5e5e5; padding: 12px; border-radius: 4px; display: none; grid-template-columns: repeat(8, 1fr); gap: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); z-index: 100; width: 300px; max-height: 210px; overflow-y: auto; }
         .emoji-picker span { cursor: pointer; font-size: 1.4em; text-align: center; }
 
-        /* ================= 📱 手机端深度自适应：绝对定位锁死，拒绝聊天框被挤压出视窗 ================= */
         @media (max-width: 768px) {
             .wechat-container { position: absolute; inset: 0; width: 100vw; height: 100vh; max-height: none; max-width: none; flex-direction: column; }
-            
             .left-panel { width: 100%; height: auto; flex: none; border-right: none; border-bottom: 1px solid #e5e5e5; }
-            .left-header { display: none; } 
-            .member-section { display: none; } 
-            
+            .left-header { display: none; } .member-section { display: none; } 
             .voice-card { padding: 10px 15px; display: flex; flex-direction: column; gap: 4px; background: #fafafa; }
             .status-box { margin-bottom: 4px; width: 100%; padding: 6px; font-size: 0.78em; }
             .voice-ctrl-btns { display: flex; gap: 8px; width: 100%; }
@@ -118,10 +111,8 @@
             .slider-group-mobile { display: flex; gap: 12px; width: 100%; margin-top: 4px; }
             .slider-wrap { flex: 1; margin-top: 0; font-size: 0.75em; }
             .error-log-box { width: 100%; margin-top: 4px; font-size: 0.78em; }
-
             .right-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
             .right-header { display: none; } 
-            
             #chat-box { padding: 12px; flex: 1; }
             .input-toolbar { padding: 6px 12px; }
             textarea { height: 45px; font-size: 0.95em; }
@@ -132,7 +123,6 @@
 <body>
 
     <div class="wechat-container">
-        
         <div class="left-panel">
             <div class="left-header">
                 <div class="user-avatar" onclick="document.getElementById('avatar-input').click()" title="更换头像">
@@ -142,7 +132,7 @@
                 <input type="file" id="avatar-input" accept="image/*" style="display: none;" onchange="uploadAvatar(this)">
                 
                 <div class="left-header-info">
-                    <h2>微信大厅 · 极速自愈版</h2>
+                    <h2>微信大厅 · 全自愈版</h2>
                     <p>房间号: <span id="room-id-span" style="color: var(--wechat-green); font-weight: bold;">-</span></p>
                     <p>我的昵称: <span id="my-id" style="font-weight: bold; color: #555;">设置中...</span></p>
                 </div>
@@ -150,7 +140,6 @@
             
             <div class="voice-card">
                 <div id="voice-status-box" class="status-box">当前状态：未加入语音</div>
-                
                 <div class="voice-ctrl-btns">
                     <button id="btn-join" class="we-btn primary" onclick="joinGlobalVoice()">🚀 开启麦克风说话</button>
                     <button id="btn-mute" class="we-btn warn" style="display: none;" onclick="toggleMute()">🎙️ 静音麦克风</button>
@@ -161,13 +150,11 @@
                         <label>🎙️ 麦克风输入: <span id="mic-val">100%</span></label>
                         <input type="range" id="slider-mic" min="0" max="2" step="0.1" value="1" oninput="adjustMicVolume(this.value)">
                     </div>
-                    
                     <div class="slider-wrap">
                         <label>🔊 扬声器输出: <span id="speaker-val">100%</span></label>
                         <input type="range" id="slider-speaker" min="0" max="1" step="0.1" value="1" oninput="adjustSpeakerVolume(this.value)">
                     </div>
                 </div>
-                
                 <div id="error-log-box" class="error-log-box"></div>
             </div>
             
@@ -195,11 +182,9 @@
                 </div>
             </div>
         </div>
-
     </div>
 
     <script>
-        // 全自动异步高频锁定自身公网 IP
         let myIpAddr = '获取中...';
         async function fetchMyIpAddress() {
             try {
@@ -216,46 +201,52 @@
         }
         fetchMyIpAddress();
 
-        // 核心调音台全局节点变量
-        let micGainNode = null; 
+        window.globalAudioCtx = null;
+        window.audioSource = null;
+        window.hardwareStream = null;
+        window.micGainNode = null;
         let globalSpeakerVolume = 1.0; 
 
+        // === 【自愈核心重构】：彻底破除任何硬件死锁 ===
         window.joinGlobalVoice = async function() {
             if (localStream) return;
             errorLogBox.style.display = 'none';
+
+            // 1. 抢先在最前面同步激活苹果手势令牌，防止异步过期
             try {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (AudioContext) { new AudioContext().resume(); }
-            } catch(e) {}
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!window.globalAudioCtx) window.globalAudioCtx = new AudioContextClass();
+                if (window.globalAudioCtx.state === 'suspended') await window.globalAudioCtx.resume();
+            } catch(e) { console.error("音频上下文唤醒失败:", e); }
 
             if (typeof mqtt === 'undefined' || !mqttClient) {
-                printError("⛔ 大厅核心组件尚未加载完毕，请等待 3 秒后再试，或者强刷页面！");
+                printError("⛔ 核心组件尚未加载，请连网等候 3 秒或强刷网页。");
                 return;
             }
 
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                printError("⛔ 环境阻断：由于安全策略，麦克风需要 https:// 协议支持。若在微信内点开，请点击右上角选择“在外部浏览器打开”！");
+                printError("⛔ 环境阻断：必须是 https:// 开头的网址才能开麦。如果在微信内，请点右上角选择“在浏览器打开”！");
                 return;
             }
 
             try {
-                // 1. 获取硬件声音流
-                let hardwareStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                // 2. 强行调取硬件
+                window.hardwareStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 
-                // 2. 注入核心 Web Audio 混音器（实现麦克风音量增益大小控制）
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                const audioCtx = new AudioContext();
-                const source = audioCtx.createMediaStreamSource(hardwareStream);
-                
-                micGainNode = audioCtx.createGain();
-                // 用当前控制滑块的数值初始化调音台
-                micGainNode.gain.value = document.getElementById('slider-mic').value;
-                
-                const destination = audioCtx.createMediaStreamAudioDestination();
-                source.connect(micGainNode);
-                
-                // 3. 将经过虚拟调音台处理后的干净流挂载为本端输出流发送给所有人
-                localStream = destination.stream; 
+                // 3. 【硬件级自愈降级】：尝试接通调音台，如果由于魔改系统卡死，立刻自动降级使用纯原生流
+                try {
+                    window.audioSource = window.globalAudioCtx.createMediaStreamSource(window.hardwareStream);
+                    window.micGainNode = window.globalAudioCtx.createGain();
+                    window.micGainNode.gain.value = parseFloat(document.getElementById('slider-mic').value);
+                    const destination = window.globalAudioCtx.createMediaStreamAudioDestination();
+                    
+                    window.audioSource.connect(window.micGainNode);
+                    window.micGainNode.connect(destination);
+                    localStream = destination.stream; // 连线成功！
+                } catch (mixerErr) {
+                    console.warn("调音台接通失败，已触发自愈，直接启用底层纯原生硬件通道:", mixerErr);
+                    localStream = window.hardwareStream; // 自愈降级
+                }
 
                 voiceStatusBox.innerText = "🟢 已进入群语音通话";
                 voiceStatusBox.className = "status-box active";
@@ -269,24 +260,22 @@
                 });
                 logSystem('你的麦克风成功启用，大家现在能听到你说话了！');
             } catch (err) {
-                let msg = `激活失败: `;
+                console.error(err);
+                let msg = `❌ 开启失败 [${err.name}]：`;
                 if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    msg += "权限被拒绝，请点击网址左侧 🔒 允许使用麦克风。";
+                    msg += "麦克风被你拒绝了！请点击地址栏左边的 🔒 锁图标，手动允许麦克风权限后刷新。";
                 } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                    msg += "麦克风被其他语音程序占用，请退出其他通话软件后再试。";
+                    msg += "麦克风被别的软件（如正在打的微信电话、QQ语音、游戏占线）霸占锁死了！请彻底清理手机后台后重进。";
                 } else {
-                    msg += `设备异常 [${err.name}]，请重试。`;
+                    msg += "系统找不到任何麦克风输入硬件（台式机请检查外接耳机插头是否插稳）。";
                 }
                 printError(msg);
             }
         };
 
-        // 调音台事件实时处理函数
         function adjustMicVolume(val) {
             document.getElementById('mic-val').innerText = Math.round(val * 100) + '%';
-            if (micGainNode) {
-                micGainNode.gain.value = val; // 动态修改发送流的增益倍数
-            }
+            if (window.micGainNode) window.micGainNode.gain.value = val; 
         }
 
         function adjustSpeakerVolume(val) {
@@ -294,9 +283,7 @@
             document.getElementById('speaker-val').innerText = Math.round(val * 100) + '%';
             if (audioContainer) {
                 const audios = audioContainer.getElementsByTagName('audio');
-                for (let audio of audios) {
-                    audio.volume = val; // 动态批量重置所有在线好友的放音大小
-                }
+                for (let audio of audios) { audio.volume = val; }
             }
         }
 
@@ -309,14 +296,13 @@
         };
 
         const BASE_TOPIC = 'wechat-lobby-china-isolated-room-v8/';
-
         let savedRoom = localStorage.getItem('wechat_room_id') || '666';
-        let roomId = prompt("【独立房间提示】\n请输入您想加入的【房间号】(大家输入相同的数字即可聚在同一个房间):", savedRoom);
+        let roomId = prompt("【独立房间提示】\n请输入专属【房间号】(大家输入相同数字即可在一处接头):", savedRoom);
         if(!roomId || roomId.trim() === "") roomId = '666';
         localStorage.setItem('wechat_room_id', roomId.trim());
 
         let savedName = localStorage.getItem('wechat_room_username') || '';
-        let customName = prompt("请输入您的【大厅聊天的专属昵称】(若留空，将全自动分配为 福福的手下X 号)：", savedName);
+        let customName = prompt("请输入您的【大厅聊天昵称】(留空自动变成 福福的手下X 号)：", savedName);
         let myId = '';
         if (customName && customName.trim() !== "") {
             myId = customName.trim();
@@ -326,10 +312,8 @@
         }
 
         let myAvatar = localStorage.getItem('wechat_room_avatar') || '';
-
         const ROOM_TOPIC = BASE_TOPIC + roomId.trim();
-        const onlineUsers = {}; 
-        const rtcPeers = {};    
+        const onlineUsers = {}; const rtcPeers = {};    
 
         const chatBox = document.getElementById('chat-box');
         const usersGrid = document.getElementById('users-grid');
@@ -341,7 +325,6 @@
         document.getElementById('room-id-span').innerText = roomId.trim();
         document.getElementById('my-id').innerText = myId;
 
-        // 微信高频原生长矩阵表情
         const emojis = [
             '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','😍','😘','🥰','😗','😙','😚','🙂','🤗','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','🥴','😠','😡','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🥳','🥸','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','🤖','💩','❤️','💔','🔥','🎉','✨','💯','👍','👎','👏','🙏'
         ];
@@ -354,7 +337,6 @@
         function toggleEmojiPicker() { emojiPicker.style.display = (emojiPicker.style.display === 'grid') ? 'none' : 'grid'; }
         document.addEventListener('click', (e) => { if (!e.target.closest('.tool-bar-icons') && emojiPicker) emojiPicker.style.display = 'none'; });
 
-        // 更换头像Canvas压缩存储
         function uploadAvatar(input) {
             const file = input.files[0]; if (!file) return;
             const reader = new FileReader();
@@ -373,7 +355,6 @@
             reader.readAsDataURL(file);
         }
 
-        // MQTT直连
         const mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
         mqttClient.connectEventHandled = false;
         mqttClient.on('connect', () => {
@@ -432,7 +413,6 @@
             if (mqttClient && mqttClient.connected) publishPresence({ type: 'join', id: myId, avatar: myAvatar, wantsVoice: !!localStream, ip: myIpAddr });
         }, 5000);
 
-        // 原生 WebRTC 传输链路
         function createRtcConnection(targetId) {
             if (rtcPeers[targetId]) return rtcPeers[targetId];
             const pc = new RTCPeerConnection(rtcConfig); rtcPeers[targetId] = pc;
@@ -440,17 +420,12 @@
 
             pc.onicecandidate = (e) => { if (e.candidate) sendDirectMsg(targetId, { type: 'candidate', from: myId, candidate: e.candidate }); };
             pc.ontrack = (e) => {
-                let audioEl = document.getElementById('audio-' + targetId);
-                if (!audioEl) {
-                    audioEl = document.createElement('audio'); audioEl.id = 'audio-' + targetId;
-                    audioEl.setAttribute('autoplay', 'true'); audioEl.setAttribute('playsinline', 'true'); 
-                    audioContainer.appendChild(audioEl);
-                }
+                let audioEl = document.createElement('audio'); audioEl.id = 'audio-' + targetId;
+                audioEl.setAttribute('autoplay', 'true'); audioEl.setAttribute('playsinline', 'true'); 
+                audioContainer.appendChild(audioEl);
                 audioEl.srcObject = e.streams[0] || new MediaStream([e.track]);
-                audioEl.muted = false; 
-                // 同步当前扬声器控制条的值
-                audioEl.volume = globalSpeakerVolume;
-                audioEl.play().catch(err => console.log("流受限挂起", err));
+                audioEl.muted = false; audioEl.volume = globalSpeakerVolume;
+                audioEl.play().catch(err => console.log("流挂起，待点击触碰盲解", err));
             };
             pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' || pc.connectionState === 'closed') cleanupUser(targetId); };
             return pc;
@@ -469,7 +444,6 @@
 
         function printError(text) { errorLogBox.innerText = text; errorLogBox.style.display = 'block'; }
 
-        // 全局无感手势盲解
         function forcePlayAllAudios() {
             if(!audioContainer) return;
             const audios = audioContainer.getElementsByTagName('audio');
@@ -499,7 +473,6 @@
         function sendDirectMsg(targetId, data) { if(mqttClient && mqttClient.connected) mqttClient.publish(`${ROOM_TOPIC}/user/${targetId}`, JSON.stringify(data)); }
         window.addEventListener('beforeunload', () => { publishPresence({ type: 'leave', id: myId }); });
 
-        // === 微信图文核心聊天组件 ===
         function handleKeyPress(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTextMsg(); } }
         
         function sendTextMsg() {
@@ -524,12 +497,10 @@
             return id.charAt(0).toUpperCase();
         }
 
-        // === 微信图文气泡渲染（带双行IP显示） ===
         function logMessage(m, type, senderId, senderAvatar) {
             const wrapper = document.createElement('div'); wrapper.className = `msg-wrapper ${type}`;
             const avatar = document.createElement('div'); avatar.className = 'user-avatar';
             avatar.innerHTML = buildAvatarHTML(type === 'me' ? '我' : senderId, senderAvatar);
-            
             const contentBox = document.createElement('div'); contentBox.className = 'msg-content-box';
             if (type === 'peer') {
                 const author = document.createElement('div'); author.className = 'msg-author'; 
@@ -544,11 +515,11 @@
             chatBox.appendChild(wrapper); chatBox.scrollTop = chatBox.scrollHeight;
         }
 
+        // 优化：发送图片功能与开麦完全解耦，即便硬件锁死也 100% 独立中转
         function logImage(senderName, base64Data, type, senderAvatar) {
             const wrapper = document.createElement('div'); wrapper.className = `msg-wrapper ${type}`;
             const avatar = document.createElement('div'); avatar.className = 'user-avatar';
             avatar.innerHTML = buildAvatarHTML(type === 'me' ? '我' : senderName, senderAvatar);
-            
             const contentBox = document.createElement('div'); contentBox.className = 'msg-content-box';
             if (type === 'peer') {
                 const author = document.createElement('div'); author.className = 'msg-author'; 
@@ -573,11 +544,7 @@
 
         function renderUsersUI() {
             if(!usersGrid) return; usersGrid.innerHTML = '';
-            
-            // 头像框重绘
             document.getElementById('my-avatar-box').innerHTML = buildAvatarHTML(myId, myAvatar);
-            
-            // 双行名册展示
             usersGrid.appendChild(createUserPill(myId, true, !!localStream, myAvatar, myIpAddr));
             Object.keys(onlineUsers).forEach(id => {
                 usersGrid.appendChild(createUserPill(id, false, onlineUsers[id].wantsVoice, onlineUsers[id].avatar, onlineUsers[id].ip));
@@ -590,13 +557,11 @@
             const d = document.createElement('div'); d.className = `user-pill ${isMe ? 'me' : ''}`;
             const a = document.createElement('div'); a.className = 'user-avatar';
             a.innerHTML = buildAvatarHTML(id, avatarBase64);
-            
             const infoWrap = document.createElement('div'); infoWrap.className = 'user-info-text';
             const n = document.createElement('span'); n.className = 'user-name'; 
             n.innerText = (isMe ? `${id} (我)` : id) + (hasVoice ? ' 🎙️' : '');
             const ipSpan = document.createElement('span'); ipSpan.className = 'user-ip';
             ipSpan.innerText = ipAddress ? ipAddress : '未知IP';
-            
             infoWrap.appendChild(n); infoWrap.appendChild(ipSpan);
             d.appendChild(a); d.appendChild(infoWrap); return d;
         }
