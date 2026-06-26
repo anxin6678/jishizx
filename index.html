@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>微信大厅 · 历史记录留存版</title>
-    <script src="https://npm.elemecdn.com/mqtt@5.5.1/dist/mqtt.min.js"></script>
+    <title>微信大厅 · 全功能自愈版</title>
     <style>
         /* 微信官方官方视觉配色 */
         :root { 
@@ -29,12 +28,12 @@
         .form-group input { width: 100%; padding: 11px 14px; border: 1px solid #e0e0e0; border-radius: 4px; outline: none; font-size: 1em; background: #f9f9f9; transition: 0.15s; }
         .form-group input:focus { border-color: var(--wechat-green); background: #ffffff; }
         
-        /* 头像选择矩阵网格 */
-        .avatar-selector-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 5px; }
-        .avatar-item { width: 52px; height: 52px; border-radius: 6px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; border: 2px solid transparent; overflow: hidden; user-select: none; position: relative; transition: 0.1s; }
+        /* 头像选择网格 */
+        .avatar-selector-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 5px; }
+        .avatar-item { width: 65px; height: 62px; border-radius: 6px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 26px; cursor: pointer; border: 2px solid transparent; overflow: hidden; user-select: none; transition: 0.1s; }
         .avatar-item img { width: 100%; height: 100%; object-fit: cover; }
         .avatar-item.active { border-color: var(--wechat-green); background: #eef9f2; }
-        .avatar-item.upload-btn { font-size: 20px; color: #888; border: 2px dashed #ccc; background: #fafafa; }
+        .avatar-item.upload-btn { font-size: 22px; color: #888; border: 2px dashed #ccc; background: #fafafa; }
         
         /* 微信全屏主容器 */
         .wechat-container { width: 100vw; height: 100vh; max-width: 1100px; max-height: 850px; background: var(--wechat-bg); display: flex; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-radius: 4px; overflow: hidden; }
@@ -52,9 +51,9 @@
 
         button.we-btn { width: 100%; padding: 11px; border: none; border-radius: 4px; font-weight: 500; font-size: 0.95em; cursor: pointer; transition: 0.1s; text-align: center; margin-top: 12px; }
         button.we-btn.primary { background: var(--wechat-green); color: white; }
-        button.we-btn.primary:hover { background: #06ad56; }
+        button.we-btn.primary:disabled { background: #cccccc !important; color: #666666 !important; cursor: not-allowed; }
+        button.we-btn.primary:hover:not(:disabled) { background: #06ad56; }
         button.we-btn.warn { background: #f5f5f5; color: #fa5151; border: 1px solid #e5e5e5; padding: 8px; }
-        button.we-btn.warn:hover { background: #e5e5e5; }
 
         .error-log-box { display: none; margin-top: 10px; padding: 10px; background: #fff5f5; border: 1px solid #ffcccc; border-radius: 4px; color: #fa5151; font-size: 0.85em; line-height: 1.4; word-break: break-all; }
 
@@ -64,7 +63,7 @@
         
         .user-pill { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
         
-        /* 头像组件 */
+        /* 头像 */
         .user-avatar { width: 40px; height: 40px; border-radius: 4px; background: #5b92e5; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; overflow: hidden; flex-shrink: 0; position: relative; border: 1px solid rgba(0,0,0,0.05); user-select: none; }
         .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .user-pill.me .user-avatar { background: var(--wechat-green); }
@@ -75,7 +74,7 @@
         .user-name { font-size: 0.95em; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .user-ip { font-size: 0.75em; color: var(--text-grey); margin-top: 2px; }
 
-        /* 视内微型音频流托管宿主 */
+        /* 视内微型音频流宿主 */
         .safe-audio-host { width: 2px; height: 2px; opacity: 0.01; overflow: hidden; background: transparent; border: none; margin-top: auto; }
 
         /* 右侧打字公屏区 */
@@ -112,7 +111,7 @@
         .emoji-picker { position: absolute; bottom: 150px; left: 25px; background: white; border: 1px solid #e5e5e5; padding: 12px; border-radius: 4px; display: none; grid-template-columns: repeat(8, 1fr); gap: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); z-index: 100; width: 300px; max-height: 210px; overflow-y: auto; }
         .emoji-picker span { cursor: pointer; font-size: 1.4em; text-align: center; }
 
-        /* 手机端锁死边界自适应适配 */
+        /* 手机端自适应边界适配 */
         @media (max-width: 768px) {
             .wechat-container { position: absolute; inset: 0; width: 100vw; height: 100vh; max-height: none; max-width: none; flex-direction: column; }
             .left-panel { width: 100%; height: auto; flex: none; border-right: none; border-bottom: 1px solid #e5e5e5; }
@@ -151,7 +150,7 @@
                 <div class="avatar-selector-grid" id="avatar-grid"></div>
                 <input type="file" id="onboarding-avatar-file" accept="image/*" style="display: none;" onchange="handleOnboardingUpload(this)">
             </div>
-            <button class="we-btn primary" style="margin-top: 10px; padding: 12px;" onclick="submitLoginConfig()">进入大厅畅聊</button>
+            <button class="we-btn primary" id="login-submit-btn" disabled style="margin-top: 10px; padding: 12px;" onclick="submitLoginConfig()">🌐 正在加载全网通信加速组件...</button>
         </div>
     </div>
 
@@ -207,7 +206,41 @@
     </div>
 
     <script>
-        const systemPresets = ['🐶', '🐱', '🐼', '🦊', '🐻', '🦁', '🐸', '🐵'];
+        // === 1. 核心自愈：国内三大骨干网 CDN 智能容灾轮询总线 ===
+        // 彻底解决由于部分网络慢、加载延迟引起的 window.mqtt 未定义崩溃
+        const cdnChain = [
+            "https://lib.baomitu.com/mqtt/4.3.7/mqtt.min.js",      // 360 爆米图大厂骨干网（国内秒开级）
+            "https://cdn.staticfile.org/mqtt/4.3.7/mqtt.min.js",   // 七牛云国内静态镜像
+            "https://npm.elemecdn.com/mqtt@4.3.7/dist/mqtt.min.js" // 阿里巴巴全网加速站
+        ];
+        
+        let currentCdnIndex = 0;
+        function loadMqttScript() {
+            if (currentCdnIndex >= cdnChain.length) {
+                document.getElementById('login-submit-btn').innerText = "⛔ 网络受阻，请尝试切换移动4G/5G流量并刷新";
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = cdnChain[currentCdnIndex];
+            script.onload = () => {
+                console.log(`通信网载入成功 -> 节点 [${currentCdnIndex}]`);
+                // 核心组件加载加载成功，瞬间激活第一关登录按钮！
+                const loginSubmit = document.getElementById('login-submit-btn');
+                if(loginSubmit) {
+                    loginSubmit.innerText = "进入大厅畅聊";
+                    loginSubmit.disabled = false;
+                }
+            };
+            script.onerror = () => {
+                console.warn(`节点 [${currentCdnIndex}] 连接超时，正在秒切下一路国内备用加速信道...`);
+                currentCdnIndex++;
+                loadMqttScript(); 
+            };
+            document.head.appendChild(script);
+        }
+        loadMqttScript(); // 立刻拉起自愈链
+
+        const systemPresets = ['🐶', '🐱', '🐼', '🦊', '🐻', '🦁', '🐸', '常规'];
         let selectedAvatarType = 'preset';
         let selectedAvatarValue = systemPresets[0];
         
@@ -287,36 +320,24 @@
             } catch (e) { myIpAddr = '未知IP'; }
         }
 
-        // === 🟢 核心新增：本地缓存历史聊天记录读取与存盘逻辑 ===
-        function getLocalStorageLogKey() {
-            return `wechat_chat_history_room_${roomId}`;
-        }
+        function getLocalStorageLogKey() { return `wechat_chat_history_room_${roomId}`; }
 
         function appendAndSaveLocalLog(logItem) {
-            let key = getLocalStorageLogKey();
-            let logs = [];
-            try {
-                logs = JSON.parse(localStorage.getItem(key)) || [];
-            } catch(e) { logs = []; }
-            
+            let key = getLocalStorageLogKey(); let logs = [];
+            try { logs = JSON.parse(localStorage.getItem(key)) || []; } catch(e) { logs = []; }
             logs.push(logItem);
-            // 自动裁剪，防止超出浏览器缓存限制（强制只保留最近100条核心文本交互）
             if (logs.length > 100) logs.shift();
             localStorage.setItem(key, JSON.stringify(logs));
         }
 
+        // 刷新瞬间复活历史数据
         function loadRoomLocalHistory() {
-            let key = getLocalStorageLogKey();
-            let logs = [];
+            let key = getLocalStorageLogKey(); let logs = [];
             try { logs = JSON.parse(localStorage.getItem(key)) || []; } catch(e) { logs = []; }
-            
-            chatBox.innerHTML = ''; // 先清屏
+            chatBox.innerHTML = ''; 
             logs.forEach(item => {
-                if (item.logType === 'text') {
-                    renderDOMMessage(item.content, item.type, item.senderId, item.avatar);
-                } else if (item.logType === 'system') {
-                    renderDOMSystem(item.content);
-                }
+                if (item.logType === 'text') { renderDOMMessage(item.content, item.type, item.senderId, item.avatar); } 
+                else if (item.logType === 'system') { renderDOMSystem(item.content); }
             });
             chatBox.scrollTop = chatBox.scrollHeight;
         }
@@ -339,14 +360,11 @@
             document.getElementById('room-title').innerText = `大群聊 - 房间 ${roomId}`;
             document.getElementById('login-overlay').style.display = 'none';
 
-            // 【激活回放】：进大厅瞬间，将本地锁存的这个房间的历史纪录无缝全画出来！
             loadRoomLocalHistory();
-
             initMqttChannel();
             fetchMyIpAddress();
         }
 
-        // === 麦克风多旧兼容垫片调取总线（Polyfill） ===
         function crossBrowserGetUserMedia(constraints) {
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 return navigator.mediaDevices.getUserMedia(constraints);
@@ -358,28 +376,26 @@
             return Promise.reject(new Error("NotSupportedError"));
         }
 
+        // 麦克风多级自愈直连内核
         window.joinGlobalVoice = async function() {
             if (localStream) return;
             errorLogBox.style.display = 'none';
 
-            if (typeof mqtt === 'undefined' || !window.mqttClient) {
-                printError("⛔ 核心通道尚未就绪，请连网等候 3 秒后重试！"); return;
-            }
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                printError("⛔ 环境阻断：必须在 https:// 安全协议链接下才能授权硬件麦克风。"); return;
+                printError("⛔ 环境阻断：必须在 https:// 安全协议链接下才能授权硬件麦克风。如果在微信内，请点右上角选择“在外部浏览器打开”！"); return;
             }
 
             try {
                 localStream = await crossBrowserGetUserMedia({ audio: true });
             } catch (e1) {
-                console.warn("标准音频流开麦受阻，降级至单声道兼容测试流...", e1);
+                console.warn("一级录音捕获过载，执行无特效单声道盲降方案...", e1);
                 try {
                     localStream = await crossBrowserGetUserMedia({ audio: { echoCancellation: false, noiseSuppression: false } });
                 } catch (e2) {
                     let msg = `❌ 开启失败 [内核代码:${e1.name}]：`;
                     if (e1.name === 'NotAllowedError' || e1.name === 'PermissionDeniedError') {
                         msg += "权限被你拒绝了！请点左侧 🔒 锁图标重新修改为“允许”后刷新。";
-                    } else if (e1.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                    } else if (e1.name === 'NotReadableError' || e1.name === 'TrackStartError') {
                         msg += "麦克风被微信通话等后台程序强占死锁！请彻底清理手机后台后重进。";
                     } else { msg += "未检测到输入硬件，请确认设备已连入带麦克风的耳机。"; }
                     printError(msg); return;
@@ -420,7 +436,7 @@
             reader.readAsDataURL(file);
         }
 
-        // MQTT直连
+        // MQTT直连驱动
         window.mqttClient = null;
         function initMqttChannel() {
             window.mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
@@ -509,7 +525,7 @@
 
         function printError(text) { errorLogBox.innerText = text; errorLogBox.style.display = 'block'; }
 
-        // 全局触碰解冻音视频通路
+        // 触屏解冻
         function forcePlayAllAudios() {
             if(!audioContainer) return;
             const audios = audioContainer.getElementsByTagName('audio');
@@ -537,12 +553,11 @@
         function sendDirectMsg(targetId, data) { if(window.mqttClient && window.mqttClient.connected) window.mqttClient.publish(`${ROOM_TOPIC}/user/${targetId}`, JSON.stringify(data)); }
         window.addEventListener('beforeunload', () => { publishPresence({ type: 'leave', id: myId }); });
 
-        // === 6. 微信对话消息处理与 DOM 渲染组件 ===
         function handleKeyPress(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTextMsg(); } }
         
         function sendTextMsg() {
             const text = msgInput.value.trim(); if (!text) return;
-            logMessage(text, 'me', myId, myAvatar); // 本地上屏并触发存档
+            logMessage(text, 'me', myId, myAvatar);
             if(window.mqttClient && window.mqttClient.connected) window.mqttClient.publish(`${ROOM_TOPIC}/chat`, JSON.stringify({ from: myId, avatar: myAvatar, msgType: 'text', content: text }));
             msgInput.value = '';
         }
@@ -557,16 +572,8 @@
             r.readAsDataURL(file); input.value = '';
         }
 
-        function buildAvatarHTML(id, avatarBase64) {
-            if (avatarBase64 && avatarBase64.startsWith('data:image')) return `<img src="${avatarBase64}">`;
-            return avatarBase64 || id.charAt(0).toUpperCase();
-        }
-
-        // 修改文字流总线：融合“DOM上屏”与“本地离线备份”
         function logMessage(m, type, senderId, senderAvatar) {
-            // 1. 触发本地存储存档
             appendAndSaveLocalLog({ logType: 'text', content: m, type: type, senderId: senderId, avatar: senderAvatar });
-            // 2. 挂载DOM上屏显示
             renderDOMMessage(m, type, senderId, senderAvatar);
         }
 
@@ -588,7 +595,6 @@
             chatBox.appendChild(wrapper); chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // 图片单独渲染（图片看后即焚，不占用本地缓存防止爆仓）
         function logImage(senderName, base64Data, type, senderAvatar) {
             if(!chatBox) return;
             const wrapper = document.createElement('div'); wrapper.className = `msg-wrapper ${type}`;
@@ -608,9 +614,7 @@
         }
 
         function logSystem(m) { 
-            // 存档
             appendAndSaveLocalLog({ logType: 'system', content: m });
-            // 上屏
             renderDOMSystem(m);
         }
 
