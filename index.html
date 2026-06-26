@@ -54,8 +54,8 @@
     </div>
 
     <div id="join-overlay">
-        <h2 style="margin-top: 0;">状态：你还在大厅门外</h2>
-        <p style="color: #666; margin-bottom: 20px;">点击下方按钮授权麦克风，系统将自动连接所有在线用户</p>
+        <h2 id="lobby-status-title" style="margin-top: 0;">状态：你还在大厅门外</h2>
+        <p id="lobby-status-desc" style="color: #666; margin-bottom: 20px;">点击下方按钮授权麦克风，系统将自动连接所有在线用户</p>
         <button id="btn-join" class="success" style="padding: 15px 30px; font-size: 1.1em;" onclick="joinGlobalLobby()">🚀 点击进入大厅 (开启麦克风)</button>
         <button id="btn-mute" class="warning" style="display: none; margin-left: 10px; padding: 15px 20px; font-size: 1.1em;" onclick="toggleMute()">🎙️ 静音</button>
     </div>
@@ -86,7 +86,6 @@
     <div id="audio-container"></div>
 
     <script>
-        // === 核心配置 ===
         const GLOBAL_ROOM_TOPIC = 'github-pages-global-lobby-unique-2026';
         const myId = 'User_' + Math.random().toString(36).substr(2, 4).toUpperCase();
         
@@ -98,7 +97,6 @@
         const chatBox = document.getElementById('chat-box');
         const usersGrid = document.getElementById('users-grid');
         const audioContainer = document.getElementById('audio-container');
-        const joinOverlay = document.getElementById('join-overlay');
         const msgInput = document.getElementById('msg-input');
 
         // === 1. 初始化表情包面板 ===
@@ -116,11 +114,11 @@
         });
 
         function toggleEmojiPicker() {
-            emojiPicker.style.display = emojiPicker.style.display === 'grid' ? 'none' : 'grid';
+            if(emojiPicker) emojiPicker.style.display = emojiPicker.style.display === 'grid' ? 'none' : 'grid';
         }
         
         document.addEventListener('click', (e) => {
-            if (!e.target.closest('.flex')) emojiPicker.style.display = 'none';
+            if (!e.target.closest('.flex') && emojiPicker) emojiPicker.style.display = 'none';
         });
 
         // === 2. 初始化 PeerJS & MQTT ===
@@ -142,34 +140,56 @@
             }
         });
 
-        // === 3. 进入大厅与语音控制 (带智能排错提示) ===
+        // === 3. 进入大厅与语音控制 (完美防错架构版) ===
         async function joinGlobalLobby() {
             if (localStream) return;
+            
+            // 【第一步：专门处理麦克风获取，报错绝对是真实的麦克风问题】
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                
-                // 成功后改变界面
-                joinOverlay.style.background = '#d4edda';
-                joinOverlay.style.border = '2px solid #28a745';
-                joinOverlay.innerHTML = `<h2 style="margin: 0; color: #155724;">✅ 你已进入大厅！正在接收和发送语音...</h2>`;
-                document.getElementById('btn-mute').style.display = 'inline-block';
-                joinOverlay.appendChild(document.getElementById('btn-mute')); 
-                
-                renderUsersUI(); 
-                mqttClient.publish(GLOBAL_ROOM_TOPIC, myId);
-                logSystem('已广播你的上线状态。你现在可以说话和发送图片了。');
             } catch (err) {
-                console.error("麦克风错误:", err);
-                // 智能报错拦截与提示
+                console.error("真实的麦克风错误:", err);
                 if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
                     alert('⛔ 安全限制：麦克风只能在 HTTPS 协议下工作！\n请检查网址开头，将 http 改为 https 后刷新重试。');
                 } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    alert('⛔ 权限被拒绝！\n\n1. 如果你在【微信/QQ】中打开，请点击右上角选择“在浏览器中打开”。\n2. 请点击浏览器顶部地址栏左侧的“🔒锁图标”，手动允许麦克风权限，然后刷新网页。');
+                    alert('⛔ 权限被拒绝！\n\n1. 如果你在【微信/QQ】中打开，请点击右上角选择“在浏览器中打开”。\n2. 请点击浏览器顶部地址栏左侧的“🔒锁图标”，手动允许麦克风权限。');
                 } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                    alert('❓ 找不到麦克风！\n系统没有检测到麦克风设备，请检查你的耳机或麦克风是否已插好。');
+                    alert('❓ 找不到麦克风！\n系统没有检测到设备，请检查你的耳机或麦克风是否已插好。');
                 } else {
-                    alert('❌ 无法访问麦克风，发生未知错误: ' + err.message);
+                    alert('❌ 无法访问麦克风，错误: ' + err.message);
                 }
+                return; // 如果报错，立刻终止，绝不执行下面改变界面的代码
+            }
+
+            // 【第二步：麦克风获取成功后，安全地改变界面状态】
+            try {
+                const overlay = document.getElementById('join-overlay');
+                if (overlay) {
+                    overlay.style.background = '#d4edda';
+                    overlay.style.border = '2px solid #28a745';
+                }
+
+                const title = document.getElementById('lobby-status-title');
+                if (title) {
+                    title.innerText = '✅ 你已进入大厅！正在接收和发送语音...';
+                    title.style.color = '#155724';
+                }
+
+                const desc = document.getElementById('lobby-status-desc');
+                if (desc) desc.style.display = 'none';
+
+                const btnJoin = document.getElementById('btn-join');
+                if (btnJoin) btnJoin.style.display = 'none';
+
+                const btnMute = document.getElementById('btn-mute');
+                if (btnMute) btnMute.style.display = 'inline-block';
+
+                renderUsersUI(); 
+                mqttClient.publish(GLOBAL_ROOM_TOPIC, myId);
+                logSystem('已广播你的上线状态。你现在可以说话和发送图片了。');
+            } catch (domErr) {
+                // 如果这里出错，只在控制台打印，绝对不会弹窗打扰用户，也不会影响麦克风正常工作！
+                console.error("界面更新被阻止，但语音已连接:", domErr);
             }
         }
 
@@ -179,12 +199,14 @@
             localStream.getAudioTracks().forEach(track => track.enabled = !isMuted);
 
             const muteBtn = document.getElementById('btn-mute');
-            if (isMuted) {
-                muteBtn.innerText = '🔇 已静音 (点击解除)';
-                muteBtn.className = 'danger'; // 变红
-            } else {
-                muteBtn.innerText = '🎙️ 静音';
-                muteBtn.className = 'warning'; // 恢复黄色
+            if (muteBtn) {
+                if (isMuted) {
+                    muteBtn.innerText = '🔇 已静音 (点击解除)';
+                    muteBtn.className = 'danger'; 
+                } else {
+                    muteBtn.innerText = '🎙️ 静音';
+                    muteBtn.className = 'warning'; 
+                }
             }
         }
 
@@ -235,7 +257,7 @@
                 audioElement.id = 'audio-' + call.peer;
                 audioElement.srcObject = remoteStream;
                 audioElement.autoplay = true;
-                audioContainer.appendChild(audioElement);
+                if(audioContainer) audioContainer.appendChild(audioElement);
             });
 
             call.on('close', () => {
@@ -247,6 +269,7 @@
 
         // === 5. 发送功能 (文字 / 图片) ===
         function sendTextMsg() {
+            if (!msgInput) return;
             const text = msgInput.value.trim();
             if (!text) return;
             if (!localStream) return alert("请先点击进入大厅！");
@@ -258,7 +281,7 @@
                 dataConns[peerId].send(msgData);
             }
             msgInput.value = '';
-            emojiPicker.style.display = 'none';
+            if(emojiPicker) emojiPicker.style.display = 'none';
         }
 
         function sendImage(inputElement) {
@@ -276,11 +299,11 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 const base64Data = e.target.result;
-                logImage('我', base64Data, 'me'); // 自己本地显示
+                logImage('我', base64Data, 'me'); 
                 
                 const msgData = JSON.stringify({ type: 'image', data: base64Data });
                 for (let peerId in dataConns) {
-                    dataConns[peerId].send(msgData); // 广播发送
+                    dataConns[peerId].send(msgData); 
                 }
             };
             reader.readAsDataURL(file);
@@ -289,6 +312,7 @@
 
         // === 6. UI 渲染工具函数 ===
         function logMessage(msg, type) {
+            if(!chatBox) return;
             const div = document.createElement('div');
             div.className = `msg ${type}`;
             div.innerText = msg;
@@ -297,6 +321,7 @@
         }
 
         function logImage(senderName, base64Data, type) {
+            if(!chatBox) return;
             const div = document.createElement('div');
             div.className = `msg ${type}`;
             
@@ -307,7 +332,7 @@
             const img = document.createElement('img');
             img.src = base64Data;
             img.className = 'chat-img';
-            img.onclick = () => window.open(base64Data); // 支持点击放大
+            img.onclick = () => window.open(base64Data); 
             
             div.appendChild(nameSpan);
             div.appendChild(img);
@@ -321,6 +346,7 @@
         }
 
         function renderUsersUI() {
+            if(!usersGrid) return;
             usersGrid.innerHTML = ''; 
             if (myId && localStream) usersGrid.appendChild(createUserPill(myId, true));
             Object.keys(dataConns).forEach(peerId => {
@@ -337,7 +363,6 @@
             div.className = `user-pill ${isMe ? 'me' : ''}`;
             const avatar = document.createElement('div');
             avatar.className = 'user-avatar';
-            // 取ID中 "_" 后面的第一个字母做头像
             avatar.innerText = id.substring(id.indexOf('_')+1, id.indexOf('_')+2); 
             const name = document.createElement('span');
             name.innerText = isMe ? `${id} (我)` : id;
