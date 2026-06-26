@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>微信大厅 · 全端通杀尊享版</title>
-    <!-- 使用国内极速安全的阿里/饿了么全网骨干网 CDN 节点 -->
+    <title>微信大厅 · 历史记录留存版</title>
     <script src="https://npm.elemecdn.com/mqtt@5.5.1/dist/mqtt.min.js"></script>
     <style>
         /* 微信官方官方视觉配色 */
@@ -21,10 +20,10 @@
         
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #e9e9e9; color: var(--text-main); margin: 0; padding: 0; height: 100vh; width: 100vw; display: flex; justify-content: center; align-items: center; overflow: hidden; position: fixed; inset: 0; }
         
-        /* ================= 🟢 新增：微信风格内嵌登录/配置面板 ================= */
+        /* 微信风格内嵌登录/配置面板 */
         .login-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 10000; display: flex; justify-content: center; align-items: center; padding: 20px; }
         .login-card { background: #ffffff; width: 100%; max-width: 420px; border-radius: 8px; padding: 30px 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.15); display: flex; flex-direction: column; gap: 18px; }
-        .login-card h3 { margin: 0 0 5px 0; font-size: 1.3em; text-align: center; color: #111; }
+        .login-card h3 { margin: 0; font-size: 1.3em; text-align: center; color: #111; }
         .form-group { display: flex; flex-direction: column; gap: 6px; }
         .form-group label { font-size: 0.88em; color: #666; font-weight: 500; }
         .form-group input { width: 100%; padding: 11px 14px; border: 1px solid #e0e0e0; border-radius: 4px; outline: none; font-size: 1em; background: #f9f9f9; transition: 0.15s; }
@@ -54,7 +53,7 @@
         button.we-btn { width: 100%; padding: 11px; border: none; border-radius: 4px; font-weight: 500; font-size: 0.95em; cursor: pointer; transition: 0.1s; text-align: center; margin-top: 12px; }
         button.we-btn.primary { background: var(--wechat-green); color: white; }
         button.we-btn.primary:hover { background: #06ad56; }
-        button.we-btn.warn { background: #f5f5f5; color: #fa5151; border: 1px solid #e5e5e5; }
+        button.we-btn.warn { background: #f5f5f5; color: #fa5151; border: 1px solid #e5e5e5; padding: 8px; }
         button.we-btn.warn:hover { background: #e5e5e5; }
 
         .error-log-box { display: none; margin-top: 10px; padding: 10px; background: #fff5f5; border: 1px solid #ffcccc; border-radius: 4px; color: #fa5151; font-size: 0.85em; line-height: 1.4; word-break: break-all; }
@@ -76,10 +75,10 @@
         .user-name { font-size: 0.95em; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .user-ip { font-size: 0.75em; color: var(--text-grey); margin-top: 2px; }
 
-        /* 视内微型长鸣音频托管宿主 */
+        /* 视内微型音频流托管宿主 */
         .safe-audio-host { width: 2px; height: 2px; opacity: 0.01; overflow: hidden; background: transparent; border: none; margin-top: auto; }
 
-        /* 右侧打字区 */
+        /* 右侧打字公屏区 */
         .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--wechat-bg); min-height: 0; }
         .right-header { height: 62px; background: var(--wechat-panel-bg); border-bottom: 1px solid #e5e5e5; display: flex; align-items: center; padding: 0 25px; font-weight: bold; font-size: 1.1em; }
 
@@ -113,7 +112,7 @@
         .emoji-picker { position: absolute; bottom: 150px; left: 25px; background: white; border: 1px solid #e5e5e5; padding: 12px; border-radius: 4px; display: none; grid-template-columns: repeat(8, 1fr); gap: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); z-index: 100; width: 300px; max-height: 210px; overflow-y: auto; }
         .emoji-picker span { cursor: pointer; font-size: 1.4em; text-align: center; }
 
-        /* 手机端锁死边界适配 */
+        /* 手机端锁死边界自适应适配 */
         @media (max-width: 768px) {
             .wechat-container { position: absolute; inset: 0; width: 100vw; height: 100vh; max-height: none; max-width: none; flex-direction: column; }
             .left-panel { width: 100%; height: auto; flex: none; border-right: none; border-bottom: 1px solid #e5e5e5; }
@@ -136,7 +135,6 @@
 </head>
 <body>
 
-    <!-- ================= 🟢 新增：微信入网配置卡片覆盖层 ================= -->
     <div class="login-overlay" id="login-overlay">
         <div class="login-card">
             <h3>微信大厅 · 进群配置</h3>
@@ -150,22 +148,16 @@
             </div>
             <div class="form-group">
                 <label>选择我的微信头像</label>
-                <div class="avatar-selector-grid" id="avatar-grid">
-                    <!-- 动态渲染 8 款系统头像 -->
-                </div>
-                <!-- 隐藏的自定义头像文件调取器 -->
+                <div class="avatar-selector-grid" id="avatar-grid"></div>
                 <input type="file" id="onboarding-avatar-file" accept="image/*" style="display: none;" onchange="handleOnboardingUpload(this)">
             </div>
             <button class="we-btn primary" style="margin-top: 10px; padding: 12px;" onclick="submitLoginConfig()">进入大厅畅聊</button>
         </div>
     </div>
 
-    <!-- 网页主结构 -->
     <div class="wechat-container">
-        <!-- 左侧控制分栏 -->
         <div class="left-panel">
             <div class="left-header">
-                <!-- 左上角大头像，点击可在进房后随时更改 -->
                 <div class="user-avatar" onclick="document.getElementById('header-avatar-file').click()" title="更换头像">
                     <div id="my-avatar-box">我</div>
                     <div class="avatar-hint">修改</div>
@@ -173,7 +165,7 @@
                 <input type="file" id="header-avatar-file" accept="image/*" style="display: none;" onchange="handleHeaderUpload(this)">
                 
                 <div class="left-header-info">
-                    <h2 id="left-panel-title">微信大厅</h2>
+                    <h2>微信大厅</h2>
                     <p>房间号: <span id="room-id-span" style="color: var(--wechat-green); font-weight: bold;">-</span></p>
                     <p>我的昵称: <span id="my-id" style="font-weight: bold; color: #555;">设置中...</span></p>
                 </div>
@@ -191,12 +183,10 @@
             <div class="member-section">
                 <div class="member-title" id="member-count-title">在线群成员 (1)</div>
                 <div id="users-grid" class="users-grid"></div>
-                <!-- 微型多路安全放音托管盘 -->
                 <div id="audio-container" class="safe-audio-host"></div>
             </div>
         </div>
         
-        <!-- 右侧图文独立公屏 -->
         <div class="right-panel">
             <div class="right-header" id="room-title">公共大厅大群聊 (1)</div>
             <div id="chat-box"></div>
@@ -217,12 +207,10 @@
     </div>
 
     <script>
-        // === 1. 初始化系统预设内置头像数据 ===
         const systemPresets = ['🐶', '🐱', '🐼', '🦊', '🐻', '🦁', '🐸', '🐵'];
-        let selectedAvatarType = 'preset'; // 'preset' 或 'custom'
-        let selectedAvatarValue = systemPresets[0]; // 默认选二哈
+        let selectedAvatarType = 'preset';
+        let selectedAvatarValue = systemPresets[0];
         
-        // 抓取历史缓存缓存
         let cachedRoom = localStorage.getItem('wechat_room_id') || '666';
         let cachedName = localStorage.getItem('wechat_room_username') || '';
         let cachedAvatar = localStorage.getItem('wechat_room_avatar') || '';
@@ -234,7 +222,6 @@
             selectedAvatarValue = cachedAvatar;
         }
 
-        // 渲染登录面板中的头像矩阵
         const avatarGrid = document.getElementById('avatar-grid');
         function renderLoginAvatarSelector() {
             avatarGrid.innerHTML = '';
@@ -242,36 +229,26 @@
                 const item = document.createElement('div');
                 item.className = `avatar-item ${selectedAvatarType === 'preset' && selectedAvatarValue === emoji ? 'active' : ''}`;
                 item.innerText = emoji;
-                item.onclick = () => {
-                    selectedAvatarType = 'preset';
-                    selectedAvatarValue = emoji;
-                    renderLoginAvatarSelector();
-                };
+                item.onclick = () => { selectedAvatarType = 'preset'; selectedAvatarValue = emoji; renderLoginAvatarSelector(); };
                 avatarGrid.appendChild(item);
             });
-            // 最后的本地图片上传槽位
             const uploadBtn = document.createElement('div');
             uploadBtn.className = `avatar-item upload-btn ${selectedAvatarType === 'custom' ? 'active' : ''}`;
             if(selectedAvatarType === 'custom' && selectedAvatarValue.startsWith('data:image')) {
                 uploadBtn.innerHTML = `<img src="${selectedAvatarValue}">`;
-            } else {
-                uploadBtn.innerText = '＋';
-            }
+            } else { uploadBtn.innerText = '＋'; }
             uploadBtn.onclick = () => document.getElementById('onboarding-avatar-file').click();
             avatarGrid.appendChild(uploadBtn);
         }
         renderLoginAvatarSelector();
 
-        // 处理登录面板文件裁切
         function handleOnboardingUpload(input) {
             compressImageFile(input.files[0], (base64) => {
-                selectedAvatarType = 'custom';
-                selectedAvatarValue = base64;
-                renderLoginAvatarSelector();
+                selectedAvatarType = 'custom'; selectedAvatarValue = base64; renderLoginAvatarSelector();
             });
         }
 
-        // === 2. 核心网络引擎组（完全解耦、无调音干扰） ===
+        // ================= 网络核心底层配置 =================
         const rtcConfig = {
             iceServers: [
                 { urls: 'stun:stun.aliyun.com:3478' },
@@ -284,7 +261,6 @@
         let roomId = '666';
         let myId = '';
         let myAvatar = '';
-        let BASE_TOPIC = '';
         let ROOM_TOPIC = '';
         let localStream = null;
         let isMuted = false;
@@ -298,14 +274,12 @@
         const voiceStatusBox = document.getElementById('voice-status-box');
         const errorLogBox = document.getElementById('error-log-box');
 
-        // 异步锁定自身公网 IP
         async function fetchMyIpAddress() {
             try {
                 let response = await fetch('https://api.ipify.org?format=json');
                 let data = await response.json();
                 if(data && data.ip) {
-                    myIpAddr = data.ip;
-                    renderUsersUI(); 
+                    myIpAddr = data.ip; renderUsersUI(); 
                     if (window.mqttClient && window.mqttClient.connected) {
                         publishPresence({ type: 'join', id: myId, avatar: myAvatar, wantsVoice: !!localStream, ip: myIpAddr });
                     }
@@ -313,7 +287,40 @@
             } catch (e) { myIpAddr = '未知IP'; }
         }
 
-        // 点击卡片进入大厅
+        // === 🟢 核心新增：本地缓存历史聊天记录读取与存盘逻辑 ===
+        function getLocalStorageLogKey() {
+            return `wechat_chat_history_room_${roomId}`;
+        }
+
+        function appendAndSaveLocalLog(logItem) {
+            let key = getLocalStorageLogKey();
+            let logs = [];
+            try {
+                logs = JSON.parse(localStorage.getItem(key)) || [];
+            } catch(e) { logs = []; }
+            
+            logs.push(logItem);
+            // 自动裁剪，防止超出浏览器缓存限制（强制只保留最近100条核心文本交互）
+            if (logs.length > 100) logs.shift();
+            localStorage.setItem(key, JSON.stringify(logs));
+        }
+
+        function loadRoomLocalHistory() {
+            let key = getLocalStorageLogKey();
+            let logs = [];
+            try { logs = JSON.parse(localStorage.getItem(key)) || []; } catch(e) { logs = []; }
+            
+            chatBox.innerHTML = ''; // 先清屏
+            logs.forEach(item => {
+                if (item.logType === 'text') {
+                    renderDOMMessage(item.content, item.type, item.senderId, item.avatar);
+                } else if (item.logType === 'system') {
+                    renderDOMSystem(item.content);
+                }
+            });
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
         function submitLoginConfig() {
             roomId = document.getElementById('input-room').value.trim() || '666';
             let nameVal = document.getElementById('input-name').value.trim();
@@ -325,20 +332,21 @@
             localStorage.setItem('wechat_room_username', myId);
             localStorage.setItem('wechat_room_avatar', myAvatar);
 
-            BASE_TOPIC = 'wechat-lobby-china-isolated-room-v9/' + roomId;
-            ROOM_TOPIC = BASE_TOPIC;
+            ROOM_TOPIC = 'wechat-lobby-china-isolated-room-v10/' + roomId;
 
             document.getElementById('room-id-span').innerText = roomId;
             document.getElementById('my-id').innerText = myId;
             document.getElementById('room-title').innerText = `大群聊 - 房间 ${roomId}`;
-            document.getElementById('login-overlay').style.display = 'none'; // 掀开遮罩
+            document.getElementById('login-overlay').style.display = 'none';
 
-            // 启动网络连接
+            // 【激活回放】：进大厅瞬间，将本地锁存的这个房间的历史纪录无缝全画出来！
+            loadRoomLocalHistory();
+
             initMqttChannel();
             fetchMyIpAddress();
         }
 
-        // === 3. 麦克风多级自愈降级链路（拆除调音台，直连麦克风） ===
+        // === 麦克风多旧兼容垫片调取总线（Polyfill） ===
         function crossBrowserGetUserMedia(constraints) {
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 return navigator.mediaDevices.getUserMedia(constraints);
@@ -355,67 +363,48 @@
             errorLogBox.style.display = 'none';
 
             if (typeof mqtt === 'undefined' || !window.mqttClient) {
-                printError("⛔ 大厅核心组件尚未加载，网络正在自愈调路。请在网络良好处等待 3 秒后重试！");
-                return;
+                printError("⛔ 核心通道尚未就绪，请连网等候 3 秒后重试！"); return;
             }
-
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                printError("⛔ 安全阻断：由于安全策略，麦克风需要 https:// 协议支持。若在微信内打开，请务必点击右上角选择“在外部浏览器/Safari中打开”！");
-                return;
+                printError("⛔ 环境阻断：必须在 https:// 安全协议链接下才能授权硬件麦克风。"); return;
             }
 
-            // 多级约束递降无感自愈开麦（直通底层硬件）
             try {
-                // 一级标准捕获
                 localStream = await crossBrowserGetUserMedia({ audio: true });
             } catch (e1) {
-                console.warn("一级标准录音失败，降级为二级单声道裸音频请求...", e1);
+                console.warn("标准音频流开麦受阻，降级至单声道兼容测试流...", e1);
                 try {
-                    // 二级去多媒体特效采集
-                    localStream = await crossBrowserGetUserMedia({ 
-                        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } 
-                    });
+                    localStream = await crossBrowserGetUserMedia({ audio: { echoCancellation: false, noiseSuppression: false } });
                 } catch (e2) {
-                    console.error("麦克风设备深度锁死", e2);
-                    let msg = `❌ 开启失败 [内核代码:${e1.name || 'Unknown'}]：`;
+                    let msg = `❌ 开启失败 [内核代码:${e1.name}]：`;
                     if (e1.name === 'NotAllowedError' || e1.name === 'PermissionDeniedError') {
-                        msg += "麦克风已被拒绝！请点击浏览器左侧的 🔒 锁图标，将麦克风设置为“允许”后刷新网页。";
-                    } else if (e1.name === 'NotReadableError' || e1.name === 'TrackStartError') {
-                        msg += "硬件被独占霸占！麦克风当前正被微信电话、QQ语音、视频拍摄等软件锁死。请彻底清理手机后台重进。";
-                    } else if (e1.name === 'NotSupportedError') {
-                        msg += "当前网址未开启安全 HTTPS 加密协议，浏览器出于隐私保护禁止开麦。";
-                    } else {
-                        msg += "系统未检测到录音硬件（台式机用户请插好带麦克风的耳机）。";
-                    }
-                    printError(msg);
-                    return;
+                        msg += "权限被你拒绝了！请点左侧 🔒 锁图标重新修改为“允许”后刷新。";
+                    } else if (e1.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                        msg += "麦克风被微信通话等后台程序强占死锁！请彻底清理手机后台后重进。";
+                    } else { msg += "未检测到输入硬件，请确认设备已连入带麦克风的耳机。"; }
+                    printError(msg); return;
                 }
             }
 
-            voiceStatusBox.innerText = "🟢 已接入群语音通话中";
+            voiceStatusBox.innerText = "🟢 已进入群语音通话中";
             voiceStatusBox.className = "status-box active";
             document.getElementById('btn-join').style.display = 'none';
             document.getElementById('btn-mute').style.display = 'inline-block';
 
             publishPresence({ type: 'voice-state-change', id: myId, avatar: myAvatar, wantsVoice: true, ip: myIpAddr });
-
             Object.keys(onlineUsers).forEach(pId => {
                 if (onlineUsers[pId].wantsVoice && myId > pId) initiateVoiceCall(pId);
             });
             logSystem('你的麦克风成功启用，大家现在能听到你说话了！');
         };
 
-        // 处理大厅内部大头贴修改
         function handleHeaderUpload(input) {
             compressImageFile(input.files[0], (base64) => {
-                myAvatar = base64;
-                localStorage.setItem('wechat_room_avatar', myAvatar);
-                renderUsersUI();
+                myAvatar = base64; localStorage.setItem('wechat_room_avatar', myAvatar); renderUsersUI();
                 publishPresence({ type: 'join', id: myId, avatar: myAvatar, wantsVoice: !!localStream, ip: myIpAddr });
             });
         }
 
-        // 核心画布分辨率裁切压缩器
         function compressImageFile(file, callback) {
             if (!file) return;
             const reader = new FileReader();
@@ -424,21 +413,19 @@
                 img.onload = function() {
                     const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
                     canvas.width = 50; canvas.height = 50; ctx.drawImage(img, 0, 0, 50, 50);
-                    let base64 = canvas.toDataURL('image/jpeg', 0.65);
-                    callback(base64);
+                    callback(canvas.toDataURL('image/jpeg', 0.65));
                 };
                 img.src = e.target.result;
             };
             reader.readAsDataURL(file);
         }
 
-        // === 4. MQTT与WebRTC直连网络驱动 ===
+        // MQTT直连
         window.mqttClient = null;
         function initMqttChannel() {
             window.mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-            
             window.mqttClient.on('connect', () => {
-                logSystem(`已接入专属大厅房间 [${roomId}]！打字发图功能已全面就绪。`);
+                logSystem(`已成功连入房间 [${roomId}]！打字发图功能已就绪。`);
                 window.mqttClient.subscribe(`${ROOM_TOPIC}/chat`);
                 window.mqttClient.subscribe(`${ROOM_TOPIC}/presence`);
                 window.mqttClient.subscribe(`${ROOM_TOPIC}/user/${myId}`);
@@ -498,15 +485,12 @@
 
             pc.onicecandidate = (e) => { if (e.candidate) sendDirectMsg(targetId, { type: 'candidate', from: myId, candidate: e.candidate }); };
             pc.ontrack = (e) => {
-                let audioEl = document.getElementById('audio-' + targetId);
-                if (!audioEl) {
-                    audioEl = document.createElement('audio'); audioEl.id = 'audio-' + targetId;
-                    audioEl.setAttribute('autoplay', 'true'); audioEl.setAttribute('playsinline', 'true'); 
-                    audioContainer.appendChild(audioEl);
-                }
+                let audioEl = document.createElement('audio'); audioEl.id = 'audio-' + targetId;
+                audioEl.setAttribute('autoplay', 'true'); audioEl.setAttribute('playsinline', 'true'); 
+                audioContainer.appendChild(audioEl);
                 audioEl.srcObject = e.streams[0] || new MediaStream([e.track]);
                 audioEl.muted = false; audioEl.volume = 1.0;
-                audioEl.play().catch(err => console.log("流被挂起，轻触屏幕解冻放音", err));
+                audioEl.play().catch(err => console.log("流挂起", err));
             };
             pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' || pc.connectionState === 'closed') cleanupUser(targetId); };
             return pc;
@@ -525,7 +509,7 @@
 
         function printError(text) { errorLogBox.innerText = text; errorLogBox.style.display = 'block'; }
 
-        // 捕获手机全屏触触动作，实现声音自愈盲解
+        // 全局触碰解冻音视频通路
         function forcePlayAllAudios() {
             if(!audioContainer) return;
             const audios = audioContainer.getElementsByTagName('audio');
@@ -553,24 +537,12 @@
         function sendDirectMsg(targetId, data) { if(window.mqttClient && window.mqttClient.connected) window.mqttClient.publish(`${ROOM_TOPIC}/user/${targetId}`, JSON.stringify(data)); }
         window.addEventListener('beforeunload', () => { publishPresence({ type: 'leave', id: myId }); });
 
-        // === 5. 微信聊天框图文核心组件 ===
-        const emojis = [
-            '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','😍','😘','🥰','😗','😙','😚','🙂','🤗','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥','😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔','😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨','😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','🥴','😠','😡','🤬','😷','🤒','🤕','🤢','🤮','🤧','😇','🥳','🥸','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓','😈','👿','👹','👺','💀','👻','👽','🤖','💩','❤️','💔','🔥','🎉','✨','💯','👍','👎','👏','🙏'
-        ];
-        const emojiPicker = document.getElementById('emoji-picker');
-        emojis.forEach(e => {
-            const span = document.createElement('span'); span.innerText = e;
-            span.onclick = () => { msgInput.value += e; emojiPicker.style.display = 'none'; msgInput.focus(); };
-            emojiPicker.appendChild(span);
-        });
-        function toggleEmojiPicker() { emojiPicker.style.display = (emojiPicker.style.display === 'grid') ? 'none' : 'grid'; }
-        document.addEventListener('click', (e) => { if (!e.target.closest('.tool-bar-icons') && emojiPicker) emojiPicker.style.display = 'none'; });
-
+        // === 6. 微信对话消息处理与 DOM 渲染组件 ===
         function handleKeyPress(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTextMsg(); } }
         
         function sendTextMsg() {
             const text = msgInput.value.trim(); if (!text) return;
-            logMessage(text, 'me', myId, myAvatar);
+            logMessage(text, 'me', myId, myAvatar); // 本地上屏并触发存档
             if(window.mqttClient && window.mqttClient.connected) window.mqttClient.publish(`${ROOM_TOPIC}/chat`, JSON.stringify({ from: myId, avatar: myAvatar, msgType: 'text', content: text }));
             msgInput.value = '';
         }
@@ -590,7 +562,16 @@
             return avatarBase64 || id.charAt(0).toUpperCase();
         }
 
+        // 修改文字流总线：融合“DOM上屏”与“本地离线备份”
         function logMessage(m, type, senderId, senderAvatar) {
+            // 1. 触发本地存储存档
+            appendAndSaveLocalLog({ logType: 'text', content: m, type: type, senderId: senderId, avatar: senderAvatar });
+            // 2. 挂载DOM上屏显示
+            renderDOMMessage(m, type, senderId, senderAvatar);
+        }
+
+        function renderDOMMessage(m, type, senderId, senderAvatar) {
+            if(!chatBox) return;
             const wrapper = document.createElement('div'); wrapper.className = `msg-wrapper ${type}`;
             const avatar = document.createElement('div'); avatar.className = 'user-avatar';
             avatar.innerHTML = buildAvatarHTML(type === 'me' ? '我' : senderId, senderAvatar);
@@ -598,8 +579,7 @@
             if (type === 'peer') {
                 const author = document.createElement('div'); author.className = 'msg-author'; 
                 let peerIpStr = (onlineUsers[senderId] && onlineUsers[senderId].ip) ? ` (${onlineUsers[senderId].ip})` : '';
-                author.innerText = senderId + peerIpStr;
-                contentBox.appendChild(author);
+                author.innerText = senderId + peerIpStr; contentBox.appendChild(author);
             }
             const bubble = document.createElement('div'); bubble.className = 'msg-bubble'; bubble.innerText = m;
             contentBox.appendChild(bubble);
@@ -608,7 +588,9 @@
             chatBox.appendChild(wrapper); chatBox.scrollTop = chatBox.scrollHeight;
         }
 
+        // 图片单独渲染（图片看后即焚，不占用本地缓存防止爆仓）
         function logImage(senderName, base64Data, type, senderAvatar) {
+            if(!chatBox) return;
             const wrapper = document.createElement('div'); wrapper.className = `msg-wrapper ${type}`;
             const avatar = document.createElement('div'); avatar.className = 'user-avatar';
             avatar.innerHTML = buildAvatarHTML(type === 'me' ? '我' : senderName, senderAvatar);
@@ -616,18 +598,24 @@
             if (type === 'peer') {
                 const author = document.createElement('div'); author.className = 'msg-author'; 
                 let peerIpStr = (onlineUsers[senderName] && onlineUsers[senderName].ip) ? ` (${onlineUsers[senderName].ip})` : '';
-                author.innerText = senderName + peerIpStr;
-                contentBox.appendChild(author);
+                author.innerText = senderName + peerIpStr; contentBox.appendChild(author);
             }
             const img = document.createElement('img'); img.src = base64Data; img.className = 'chat-img'; img.onclick = () => window.open(base64Data);
             contentBox.appendChild(img);
             if (type === 'me') { wrapper.appendChild(contentBox); wrapper.appendChild(avatar); } 
             else { wrapper.appendChild(avatar); wrapper.appendChild(contentBox); }
-            chatBox.appendChild(wrapper);
-            setTimeout(() => { chatBox.scrollTop = chatBox.scrollHeight; }, 100);
+            chatBox.appendChild(wrapper); setTimeout(() => { chatBox.scrollTop = chatBox.scrollHeight; }, 100);
         }
 
         function logSystem(m) { 
+            // 存档
+            appendAndSaveLocalLog({ logType: 'system', content: m });
+            // 上屏
+            renderDOMSystem(m);
+        }
+
+        function renderDOMSystem(m) {
+            if(!chatBox) return;
             const div = document.createElement('div'); div.className = 'msg-system'; div.innerHTML = `<span>${m}</span>`;
             chatBox.appendChild(div); chatBox.scrollTop = chatBox.scrollHeight;
         }
