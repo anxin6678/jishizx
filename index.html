@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>微信大厅 · 网络抗闪断自愈版</title>
+    <title>微信大厅 · 多线容灾全自愈版</title>
     <style>
         /* 微信官方官方视觉配色 */
         :root { 
@@ -67,7 +67,7 @@
         .user-pill { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
         
         /* 头像 */
-        .user-avatar { width: 40px; height: 40px; border-radius: 4px; background: #5b92e5; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; overflow: hidden; flex-shrink: 0; position: relative; border: 1px solid rgba(0,0,0,0.05); user-select: none; }
+        .user-avatar { width: 40px; height: 40px; border-radius: 4px; background: #5b92e5; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; overflow: hidden; flex-shrink: 0; position: relative; cursor: pointer; border: 1px solid rgba(0,0,0,0.05); user-select: none; }
         .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .user-pill.me .user-avatar { background: var(--wechat-green); }
         .avatar-hint { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.5); color: #fff; font-size: 8px; text-align: center; padding: 1px 0; display: none; }
@@ -169,7 +169,7 @@
                 <div class="left-header-info">
                     <h2>微信大厅</h2>
                     <p>房间号: <span id="room-id-span" style="color: var(--wechat-green); font-weight: bold;">-</span></p>
-                    <p class="net-status offline" id="net-status-text">🔴 公屏网络：加载中...</p>
+                    <p class="net-status offline" id="net-status-text">🔴 公屏网络：连接中...</p>
                 </div>
             </div>
             
@@ -219,7 +219,7 @@
         let currentCdnIndex = 0;
         function loadMqttScript() {
             if (currentCdnIndex >= cdnChain.length) {
-                document.getElementById('login-submit-btn').innerText = "⛔ 网络受阻，请尝试切换手机流量并刷新";
+                document.getElementById('login-submit-btn').innerText = "⛔ 网络受阻，请切换手机流量刷新";
                 return;
             }
             const script = document.createElement('script');
@@ -239,7 +239,7 @@
         }
         loadMqttScript(); 
 
-        const systemPresets = ['🐶', '🐱', '🐼', '🦊', '🐻', '🦁', '🐸', '🦁'];
+        const systemPresets = ['🐶', '🐱', '🐼', '🦊', '🐻', '🦁', '🐸', '🐨'];
         let selectedAvatarType = 'preset';
         let selectedAvatarValue = systemPresets[0];
         
@@ -351,7 +351,7 @@
             localStorage.setItem('wechat_room_username', myId);
             localStorage.setItem('wechat_room_avatar', myAvatar);
 
-            ROOM_TOPIC = 'wechat-lobby-china-isolated-room-v11/' + roomId;
+            ROOM_TOPIC = 'wechat-lobby-china-isolated-room-v12/' + roomId;
 
             document.getElementById('room-id-span').innerText = roomId;
             document.getElementById('room-title').innerText = `大群聊 - 房间 ${roomId}`;
@@ -432,81 +432,74 @@
             reader.readAsDataURL(file);
         }
 
-        // === 2. MQTT 直连引擎（注入核心激进重连机制） ===
+        // === 2. 🟢 核心多路容灾：全球三大顶级免费 MQTT 网关集群调度总线 ===
+        // 专门攻克部分国内运营商对单个服务器 IP、8084 端口实施的掐断假死封锁
+        const publicBrokerCluster = [
+            'wss://broker.emqx.io:8084/mqtt',       // 链路 1：EMQX 官方高速网关
+            'wss://test.mosquitto.org:8081/mqtt',   // 链路 2：Mosquitto 经典开源网关
+            'wss://broker.hivemq.com:8884/mqtt'     // 链路 3：HiveMQ 工业级稳定集群
+        ];
+        let currentClusterIndex = 0;
+
         window.mqttClient = null;
         function initMqttChannel() {
             const statusText = document.getElementById('net-status-text');
+            if (currentClusterIndex >= publicBrokerCluster.length) {
+                statusText.innerText = "❌ 容灾链路耗尽，请更换网络刷新";
+                statusText.className = "net-status offline";
+                return;
+            }
 
-            // 注入高级自愈连接配置
+            console.log(`正在调路骨干网节点 [${currentClusterIndex}] -> ${publicBrokerCluster[currentClusterIndex]}`);
+            statusText.innerText = `🔴 公屏网络：路由调配中...`;
+            statusText.className = "net-status offline";
+
             const mqttOptions = {
-                keepalive: 10,            // 10秒超短网络活性探针，高频逼迫基站维持信道
-                reconnectPeriod: 1000,    // 遭遇闪断后，每 1 秒在后台疯狂自愈重连
-                connectTimeout: 5000,
+                keepalive: 10,           
+                reconnectPeriod: 2000,   
+                connectTimeout: 4000,    // 4秒不成功立刻判定假死，触发自愈换线
                 clean: true
             };
 
-            window.mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', mqttOptions);
-            
-            window.mqttClient.on('connect', () => {
-                statusText.innerText = "🟢 公屏网络：已连接";
+            // 创建连接
+            const client = mqtt.connect(publicBrokerCluster[currentClusterIndex], mqttOptions);
+            window.mqttClient = client;
+
+            let hasConnectedOnce = false;
+
+            client.on('connect', () => {
+                hasConnectedOnce = true;
+                statusText.innerText = "🟢 公屏网络：已连通专线";
                 statusText.className = "net-status online";
 
-                window.mqttClient.subscribe(`${ROOM_TOPIC}/chat`);
-                window.mqttClient.subscribe(`${ROOM_TOPIC}/presence`);
-                window.mqttClient.subscribe(`${ROOM_TOPIC}/user/${myId}`);
+                client.subscribe(`${ROOM_TOPIC}/chat`);
+                client.subscribe(`${ROOM_TOPIC}/presence`);
+                client.subscribe(`${ROOM_TOPIC}/user/${myId}`);
                 publishPresence({ type: 'join', id: myId, avatar: myAvatar, wantsVoice: false, ip: myIpAddr });
                 renderUsersUI();
             });
 
-            // 监听网络彻底断开或波动状态
-            window.mqttClient.on('close', () => {
-                statusText.innerText = "🔴 公屏网络：已断开，正在自愈...";
-                statusText.className = "net-status offline";
+            // 监听底层断开或握手失败事件
+            client.on('close', () => {
+                // 如果从来没有连接成功过，说明这个网关被本地宽带彻底墙了，立刻斩断换下一条线
+                if (!hasConnectedOnce) {
+                    console.warn(`节点 [${currentClusterIndex}] 遭到运营商静默拦截，正在强制切路...`);
+                    client.end(true);
+                    currentClusterIndex++;
+                    initMqttChannel(); // 递归调用容灾重连
+                } else {
+                    statusText.innerText = "🔴 公屏网络：假死自愈重连中...";
+                    statusText.className = "net-status offline";
+                }
             });
 
-            window.mqttClient.on('error', () => {
-                statusText.innerText = "🔴 公屏网络：连线受阻重连中...";
-                statusText.className = "net-status offline";
-            });
-
-            window.mqttClient.on('message', async (topic, message) => {
-                try {
-                    const data = JSON.parse(message.toString());
-                    if (topic === `${ROOM_TOPIC}/chat`) {
-                        if (data.from === myId) return;
-                        if (data.msgType === 'text') logMessage(data.content, 'peer', data.from, data.avatar);
-                        if (data.msgType === 'image') logImage(data.from, data.content, 'peer', data.avatar);
-                    }
-                    else if (topic === `${ROOM_TOPIC}/presence`) {
-                        if (data.id === myId) return;
-                        if (data.type === 'join') {
-                            onlineUsers[data.id] = { wantsVoice: data.wantsVoice, avatar: data.avatar, ip: data.ip };
-                            sendDirectMsg(data.id, { type: 'reply-presence', from: myId, avatar: myAvatar, wantsVoice: !!localStream, ip: myIpAddr });
-                            logSystem(`群友 [${data.id}] (IP: ${data.ip || '未知IP'}) 进入了聊天室`);
-                            renderUsersUI();
-                        } 
-                        else if (data.type === 'voice-state-change') {
-                            if (!onlineUsers[data.id]) onlineUsers[data.id] = {};
-                            onlineUsers[data.id].wantsVoice = data.wantsVoice;
-                            onlineUsers[data.id].avatar = data.avatar;
-                            onlineUsers[data.id].ip = data.ip;
-                            renderUsersUI();
-                            if (data.wantsVoice && localStream && myId > data.id) initiateVoiceCall(data.id);
-                        }
-                        else if (data.type === 'leave') { cleanupUser(data.id); }
-                    }
-                    else if (topic === `${ROOM_TOPIC}/user/${myId}`) {
-                        const fromPeer = data.from;
-                        if (data.type === 'reply-presence') {
-                            onlineUsers[fromPeer] = { wantsVoice: data.wantsVoice, avatar: data.avatar, ip: data.ip };
-                            renderUsersUI();
-                            if (data.wantsVoice && localStream && myId > fromPeer) initiateVoiceCall(fromPeer);
-                        }
-                        else if (data.type === 'offer') handleOfferSignal(fromPeer, data.offer);
-                        else if (data.type === 'answer') { if (rtcPeers[fromPeer]) await rtcPeers[fromPeer].setRemoteDescription(new RTCSessionDescription(data.answer)); }
-                        else if (data.type === 'candidate') { if (rtcPeers[fromPeer]) await rtcPeers[fromPeer].addIceCandidate(new RTCIceCandidate(data.candidate)); }
-                    }
-                } catch(e) {}
+            client.on('error', (err) => {
+                console.error("信道捕获异常:", err);
+                if (!hasConnectedOnce) {
+                    client.end(true);
+                    currentClusterIndex++;
+                    initMqttChannel();
+                }
             });
         }
 
@@ -521,9 +514,12 @@
 
             pc.onicecandidate = (e) => { if (e.candidate) sendDirectMsg(targetId, { type: 'candidate', from: myId, candidate: e.candidate }); };
             pc.ontrack = (e) => {
-                let audioEl = document.createElement('audio'); audioEl.id = 'audio-' + targetId;
-                audioEl.setAttribute('autoplay', 'true'); audioEl.setAttribute('playsinline', 'true'); 
-                audioContainer.appendChild(audioEl);
+                let audioEl = document.getElementById('audio-' + targetId);
+                if (!audioEl) {
+                    audioEl = document.createElement('audio'); audioEl.id = 'audio-' + targetId;
+                    audioEl.setAttribute('autoplay', 'true'); audioEl.setAttribute('playsinline', 'true'); 
+                    audioContainer.appendChild(audioEl);
+                }
                 audioEl.srcObject = e.streams[0] || new MediaStream([e.track]);
                 audioEl.muted = false; audioEl.volume = 1.0;
                 audioEl.play().catch(err => console.log("流挂起", err));
@@ -572,25 +568,20 @@
         function sendDirectMsg(targetId, data) { if(window.mqttClient && window.mqttClient.connected) window.mqttClient.publish(`${ROOM_TOPIC}/user/${targetId}`, JSON.stringify(data)); }
         window.addEventListener('beforeunload', () => { publishPresence({ type: 'leave', id: myId }); });
 
-        // === 3. 微信对话与发送核心保护机制 ===
         function handleKeyPress(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTextMsg(); } }
         
         function sendTextMsg() {
             const text = msgInput.value.trim(); if (!text) return;
-            
-            // 【核心修复防护】：如果当前信道已经断开，强力拦截并进行震慑提示，保留输入框内容，防止丢字
             if (!window.mqttClient || !window.mqttClient.connected) {
-                alert("⚠️ 提示：当前公屏网络正因国内基站信号波动处于重连自愈中，请稍候 1-2 秒，等状态灯变绿后再发消息！");
-                return;
+                alert("⚠️ 提示：公屏网络当前由于跨网波动正在后台自动换线重连，请变绿灯后再发消息！"); return;
             }
-
             logMessage(text, 'me', myId, myAvatar);
             window.mqttClient.publish(`${ROOM_TOPIC}/chat`, JSON.stringify({ from: myId, avatar: myAvatar, msgType: 'text', content: text }));
             msgInput.value = '';
         }
 
         function sendImage(input) {
-            if (!window.mqttClient || !window.mqttClient.connected) return alert('⚠️ 网络连接重连中，请变绿灯后再上传图片！');
+            if (!window.mqttClient || !window.mqttClient.connected) return alert('⚠️ 请等绿灯连通后再传图片！');
             const file = input.files[0]; if (!file || file.size > 2 * 1024 * 1024) return alert('⚠️ 图片不能超过 2MB！');
             const r = new FileReader();
             r.onload = function(e) {
