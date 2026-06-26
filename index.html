@@ -3,51 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2P 无服务器语音聊天室</title>
+    <title>P2P 多人视频与屏幕共享聊天室</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { --primary: #007bff; --bg: #f4f7f6; --text: #333; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); max-width: 800px; margin: 0 auto; padding: 20px; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); color: var(--text); max-width: 1000px; margin: 0 auto; padding: 20px; }
         .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
         h1, h3 { margin-top: 0; }
-        .flex { display: flex; gap: 10px; flex-wrap: wrap; }
+        .flex { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
         input[type="text"] { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
         button { padding: 10px 20px; border: none; border-radius: 5px; background: var(--primary); color: white; cursor: pointer; font-weight: bold; transition: 0.3s; }
         button:hover { opacity: 0.8; }
         button.danger { background: #dc3545; }
         button.success { background: #28a745; }
-        #chat-box { height: 300px; border: 1px solid #eee; border-radius: 5px; overflow-y: auto; padding: 10px; margin-bottom: 10px; background: #fafafa; }
+        button.warning { background: #ffc107; color: #000; }
+        
+        /* 视频网格布局 */
+        #video-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-top: 10px; }
+        .video-wrapper { position: relative; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 4/3; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .video-label { position: absolute; bottom: 5px; left: 5px; background: rgba(0,0,0,0.6); color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; }
+        
+        /* 聊天室布局 */
+        #chat-box { height: 250px; border: 1px solid #eee; border-radius: 5px; overflow-y: auto; padding: 10px; margin-bottom: 10px; background: #fafafa; }
         .msg { margin-bottom: 8px; line-height: 1.4; }
         .msg.me { color: var(--primary); text-align: right; }
         .msg.peer { color: #d63384; }
         .msg.system { color: #6c757d; font-size: 0.9em; text-align: center; font-style: italic; }
-        .peer-list { margin-top: 10px; font-size: 0.9em; color: #555; }
-        #audio-container { display: none; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h1>🎙️ P2P 网页语音聊天</h1>
-        <p>你的唯一通讯 ID: <strong id="my-id" style="color: var(--primary); user-select: all; font-size: 1.2em;">生成中...</strong></p>
-        <p style="font-size: 0.85em; color: #666;">（将此 ID 发给你的朋友，或者输入朋友的 ID 进行连接）</p>
+        <h1>🎥 P2P 视频会议室</h1>
+        <p>你的通讯 ID: <strong id="my-id" style="color: var(--primary); user-select: all; font-size: 1.2em;">生成中...</strong></p>
         
         <div class="flex">
-            <button id="btn-mic" class="danger">1. 开启麦克风 (必须先开启)</button>
+            <button id="btn-camera" class="danger">1. 开启摄像头与麦克风 (必须先开启)</button>
+            <button id="btn-screen" class="warning" style="display: none;">💻 共享屏幕</button>
         </div>
     </div>
 
     <div class="card">
-        <h3>🔗 连接到好友</h3>
+        <h3>🔗 连接好友</h3>
         <div class="flex">
-            <input type="text" id="target-id" placeholder="输入朋友的 ID...">
+            <input type="text" id="target-id" placeholder="输入朋友的 ID 进行连接...">
             <button id="btn-connect" onclick="connectToPeer()">2. 连接并呼叫</button>
         </div>
-        <div class="peer-list" id="active-peers">当前连接: 无</div>
     </div>
 
     <div class="card">
-        <h3>💬 聊天室</h3>
+        <h3>📺 视频画面</h3>
+        <div id="video-grid">
+            <div class="video-wrapper">
+                <video id="local-video" autoplay playsinline muted></video>
+                <div class="video-label">我 (本地)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>💬 聊天室 (<span id="active-peers-count">0</span> 人已连接)</h3>
         <div id="chat-box"></div>
         <div class="flex">
             <input type="text" id="msg-input" placeholder="输入文字消息..." onkeypress="if(event.key === 'Enter') sendMsg()">
@@ -55,156 +71,51 @@
         </div>
     </div>
 
-    <div id="audio-container"></div>
-
     <script>
-        // 初始化 PeerJS (连接到公共免费服务器)
         const peer = new Peer();
         let myId = '';
-        let localStream = null;
+        let localStream = null;      // 本地音视频流
+        let screenStream = null;     // 屏幕共享流
         
-        // 存储连接对象，支持多人
         const dataConns = {}; 
         const mediaCalls = {}; 
 
-        // DOM 元素
         const chatBox = document.getElementById('chat-box');
-        const activePeersDiv = document.getElementById('active-peers');
-        const audioContainer = document.getElementById('audio-container');
+        const videoGrid = document.getElementById('video-grid');
+        const localVideo = document.getElementById('local-video');
 
-        // 1. 成功连接服务器，获取自身 ID
+        // 1. 初始化连接
         peer.on('open', (id) => {
             myId = id;
             document.getElementById('my-id').innerText = id;
-            logSystem('已连接到信令网络，可以开始通讯。');
+            logSystem('已连接到网络，可以开始通讯。');
         });
 
-        peer.on('error', (err) => {
-            logSystem('网络错误: ' + err.type);
-            console.error(err);
-        });
-
-        // 2. 开启麦克风
-        document.getElementById('btn-mic').addEventListener('click', async () => {
+        // 2. 开启摄像头与麦克风
+        document.getElementById('btn-camera').addEventListener('click', async () => {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                const btn = document.getElementById('btn-mic');
+                // 请求视频和音频权限
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                localVideo.srcObject = localStream; // 本地显示自己的画面
+                
+                const btn = document.getElementById('btn-camera');
                 btn.className = 'success';
-                btn.innerText = '麦克风已开启 ✅';
-                logSystem('麦克风已就绪。');
+                btn.innerText = '摄像头/麦克风已开启 ✅';
+                document.getElementById('btn-screen').style.display = 'inline-block'; // 显示屏幕共享按钮
+                logSystem('摄像头已就绪。');
             } catch (err) {
-                alert('无法访问麦克风，请检查浏览器权限限制。');
+                alert('无法访问摄像头/麦克风，请检查浏览器权限。');
+                console.error(err);
             }
         });
 
-        // 3. 接收他人的文字连接请求
-        peer.on('connection', (conn) => {
-            setupDataConnection(conn);
-        });
-
-        // 4. 接收他人的语音呼叫
-        peer.on('call', (call) => {
-            if (!localStream) {
-                logSystem('收到语音呼叫，但你未开启麦克风，无法接听。');
-                return;
-            }
-            // 接听呼叫并发送自己的声音
-            call.answer(localStream);
-            setupMediaCall(call);
-        });
-
-        // 5. 主动连接其他用户 (文字+语音)
-        function connectToPeer() {
-            const targetId = document.getElementById('target-id').value.trim();
-            if (!targetId || targetId === myId) return alert('请输入有效的他人 ID');
-            if (!localStream) return alert('请先开启麦克风再进行连接！');
-
-            // 建立数据连接 (文字)
-            const conn = peer.connect(targetId);
-            setupDataConnection(conn);
-
-            // 建立媒体呼叫 (语音)
-            const call = peer.call(targetId, localStream);
-            setupMediaCall(call);
+        // 3. 屏幕共享切换逻辑
+        document.getElementById('btn-screen').addEventListener('click', async () => {
+            if (!localStream) return alert('请先开启摄像头建立基础连接！');
             
-            document.getElementById('target-id').value = '';
-        }
+            try {
+                // 请求屏幕共享权限
+                screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const screenVideoTrack = screenStream.getVideoTracks()[0];
 
-        // ================= 工具函数 =================
-
-        // 设置数据连接 (文字聊天)
-        function setupDataConnection(conn) {
-            conn.on('open', () => {
-                dataConns[conn.peer] = conn;
-                updatePeerList();
-                logSystem(`已与用户 ${conn.peer.substring(0,5)}... 建立连接`);
-            });
-
-            conn.on('data', (data) => {
-                logMessage(`[用户 ${conn.peer.substring(0,5)}]: ${data}`, 'peer');
-            });
-
-            conn.on('close', () => {
-                delete dataConns[conn.peer];
-                updatePeerList();
-                logSystem(`用户 ${conn.peer.substring(0,5)}... 断开连接`);
-            });
-        }
-
-        // 设置媒体连接 (播放语音)
-        function setupMediaCall(call) {
-            call.on('stream', (remoteStream) => {
-                // 如果已经有这个人的声音了，就跳过（防止重复添加）
-                if (document.getElementById('audio-' + call.peer)) return;
-
-                const audioElement = document.createElement('audio');
-                audioElement.id = 'audio-' + call.peer;
-                audioElement.srcObject = remoteStream;
-                audioElement.autoplay = true;
-                audioContainer.appendChild(audioElement);
-            });
-
-            call.on('close', () => {
-                const audioEl = document.getElementById('audio-' + call.peer);
-                if (audioEl) audioEl.remove();
-            });
-            mediaCalls[call.peer] = call;
-        }
-
-        // 发送文字消息 (广播给所有已连接的人)
-        function sendMsg() {
-            const input = document.getElementById('msg-input');
-            const text = input.value.trim();
-            if (!text) return;
-
-            // 在本地显示
-            logMessage(`[我]: ${text}`, 'me');
-            
-            // 循环发送给所有人
-            for (let peerId in dataConns) {
-                dataConns[peerId].send(text);
-            }
-            input.value = '';
-        }
-
-        // 更新 UI 列表
-        function updatePeerList() {
-            const ids = Object.keys(dataConns);
-            activePeersDiv.innerText = ids.length ? `当前连接: ${ids.length} 人` : '当前连接: 无';
-        }
-
-        // 打印信息到聊天框
-        function logMessage(msg, type) {
-            const div = document.createElement('div');
-            div.className = `msg ${type}`;
-            div.innerText = msg;
-            chatBox.appendChild(div);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-        function logSystem(msg) {
-            logMessage(`— ${msg} —`, 'system');
-        }
-    </script>
-</body>
-</html>
+                // 将
