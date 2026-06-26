@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>微信大厅 · 国内全网加速版</title>
-    <script src="https://npm.elemecdn.com/mqtt@5.5.1/dist/mqtt.min.js"></script>
+    <title>微信大厅 · 国内全自愈终极版</title>
+    <script src="https://cdn.jsdelivr.net/npm/mqtt@5.5.1/dist/mqtt.min.js"></script>
     <style>
-        /* 微信官方经典配色 */
+        /* 微信官方经典视觉配色 */
         :root { 
             --wechat-green: #07c160; 
             --wechat-bg: #f3f3f3; 
@@ -26,7 +26,7 @@
         .left-panel { width: 320px; background: var(--wechat-panel-bg); border-right: 1px solid #e5e5e5; display: flex; flex-direction: column; }
         .left-header { padding: 25px 20px; border-bottom: 1px solid #e5e5e5; background: #f2f2f2; }
         .left-header h2 { margin: 0; font-size: 1.2em; color: #111; }
-        .left-header p { margin: 4px 0 0 0; font-size: 0.85em; color: var(--text-grey); word-break: break-all; }
+        .left-header p { margin: 5px 0 0 0; font-size: 0.85em; color: var(--text-grey); word-break: break-all; }
 
         .voice-card { padding: 15px 20px; background: #ffffff; border-bottom: 1px solid #e5e5e5; }
         .status-box { padding: 10px; border-radius: 4px; background: #f8f9fa; text-align: center; font-weight: bold; font-size: 0.9em; margin-bottom: 12px; border: 1px solid #e5e5e5; }
@@ -37,7 +37,7 @@
         button.we-btn.primary:hover { background: #06ad56; }
         button.we-btn.warn { background: #f5f5f5; color: #fa5151; border: 1px solid #e5e5e5; }
         button.we-btn.warn:hover { background: #e5e5e5; }
-        
+
         .error-log-box { display: none; margin-top: 10px; padding: 8px 10px; background: #fff5f5; border: 1px solid #ffcccc; border-radius: 4px; color: #fa5151; font-size: 0.82em; line-height: 1.4; word-break: break-all; }
 
         .member-section { flex: 1; padding: 15px 20px; display: flex; flex-direction: column; min-height: 0; position: relative; }
@@ -48,6 +48,9 @@
         .user-avatar { width: 36px; height: 36px; border-radius: 4px; background: #5b92e5; color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; text-transform: uppercase; }
         .user-pill.me .user-avatar { background: var(--wechat-green); }
         .user-name { font-size: 0.95em; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* 【iPad/手机端音轨长鸣核心】：绝不能用 display:none 隐藏，必须原位小像素可见渲染，强行破解苹果防省电挂起机制 */
+        .safe-audio-host { width: 2px; height: 2px; opacity: 0.01; overflow: hidden; background: transparent; border: none; margin-top: auto; }
 
         /* 右侧独立打字聊天视窗区 */
         .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--wechat-bg); }
@@ -83,9 +86,6 @@
         .emoji-picker { position: absolute; bottom: 150px; left: 25px; background: white; border: 1px solid #e5e5e5; padding: 10px; border-radius: 4px; display: none; grid-template-columns: repeat(7, 1fr); gap: 10px; box-shadow: 0 2px 15px rgba(0,0,0,0.08); z-index: 100; }
         .emoji-picker span { cursor: pointer; font-size: 1.4em; text-align: center; }
 
-        /* iPad/苹果视内自适应活跃音频流容器 */
-        .safe-audio-host { width: 2px; height: 2px; overflow: hidden; opacity: 0.05; background: transparent; pointer-events: none; margin-top: auto; }
-
         @media (max-width: 768px) {
             .wechat-container { flex-direction: column; height: 100vh; border-radius: 0; }
             .left-panel { width: 100%; height: auto; flex: none; }
@@ -99,24 +99,24 @@
 <body>
 
     <div class="wechat-container">
+        
         <div class="left-panel">
             <div class="left-header">
-                <h2>微信大厅 · 全网加速版</h2>
-                <p>房间号: <span id="room-id-span" style="color: var(--wechat-green); font-weight: bold;">-</span></p>
-                <p>我的昵称: <span id="my-id" style="font-weight: bold; color: #555;">初始化中...</span></p>
+                <h2>微信大厅 · 极速重连版</h2>
+                <p>我的昵称: <span id="my-id" style="font-weight: bold; color: var(--wechat-green);">设置中...</span></p>
             </div>
             
             <div class="voice-card">
                 <div id="voice-status-box" class="status-box">当前状态：未加入语音</div>
                 <button id="btn-join" class="we-btn primary" onclick="joinGlobalVoice()">🚀 开启麦克风说话</button>
                 <button id="btn-mute" class="we-btn warn" style="display: none;" onclick="toggleMute()">🎙️ 静音麦克风</button>
-                
                 <div id="error-log-box" class="error-log-box"></div>
             </div>
             
             <div class="member-section">
                 <div class="member-title" id="member-count-title">在线群成员 (1)</div>
                 <div id="users-grid" class="users-grid"></div>
+                
                 <div id="audio-container" class="safe-audio-host"></div>
             </div>
         </div>
@@ -138,97 +138,46 @@
                 </div>
             </div>
         </div>
+
     </div>
 
     <script>
-        // ================= 【顶层安全防御区】 =================
-        // 核心改动：立刻提前声明麦克风控制函数，保证任何网络环境下，按钮绝不“点不动”！
-        window.joinGlobalVoice = async function() {
-            if (localStream) return;
-            errorLogBox.style.display = 'none';
-
-            // 解锁苹果与现代浏览器的音频环境
-            try {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (AudioContext) { new AudioContext().resume(); }
-            } catch(e) {}
-
-            if (typeof mqtt === 'undefined' || !mqttClient) {
-                printError("⛔ 大厅核心组件尚未加载完毕（国内CDN骨干网可能在为您所在的宽带进行动态调路）。请等待 3 秒后再试，或者强刷页面！");
-                return;
-            }
-
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                printError("⛔ 环境阻断：非 HTTPS 协议，或者浏览器屏蔽了硬件。请确认网址是以 https:// 开头，并且是用系统自带浏览器打开，不要在微信内置浏览器内直接点击！");
-                return;
-            }
-
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                
-                voiceStatusBox.innerText = "🟢 已进入群语音通话";
-                voiceStatusBox.className = "status-box active";
-                document.getElementById('btn-join').style.display = 'none';
-                document.getElementById('btn-mute').style.display = 'inline-block';
-
-                if (mqttClient && mqttClient.connected) {
-                    publishPresence({ type: 'voice-state-change', id: myId, wantsVoice: true });
-                }
-
-                Object.keys(onlineUsers).forEach(pId => {
-                    if (onlineUsers[pId].wantsVoice && myId > pId) initiateVoiceCall(pId);
-                });
-                logSystem('你的麦克风成功启用，大家现在能听到你说话了！');
-            } catch (err) {
-                console.error(err);
-                let msg = `激活失败: `;
-                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    msg += "麦克风权限被拒绝，请点击浏览器左侧 🔒 允许使用麦克风。";
-                } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                    msg += "麦克风正被其他程序（如微信电话、后台录音机）占用，请彻底清除后台应用后再试。";
-                } else {
-                    msg += "未检测到输入设备，或发生硬件死锁。";
-                }
-                printError(msg);
-            }
-        };
-
-        // 国内顶级高速专线 STUN 穿透集群
+        // === 国内特调：六重大厂顶级高速 STUN 穿透服务器资源池，全方位打通移动/电信/联通跨网互联 ===
         const rtcConfig = {
             iceServers: [
                 { urls: 'stun:stun.aliyun.com:3478' },
                 { urls: 'stun:stun.miwifi.com:3478' },
-                { urls: 'stun:stun.360.cn:3478' }
+                { urls: 'stun:stun.winphone.com:3478' },
+                { urls: 'stun:stun.360.cn:3478' },
+                { urls: 'stun:stun.hit.edu.cn:3478' },
+                { urls: 'stun:stun.nextcloud.com:3478' }
             ]
         };
 
-        const BASE_TOPIC = 'wechat-lobby-china-v3/';
+        // 引入房间隔离专属命名空间
+        let userRoomInput = prompt("请输入您想加入的【房间编号】（默认为666）：", "666");
+        const roomNumber = (userRoomInput && userRoomInput.trim() !== "") ? userRoomInput.trim() : "666";
+        const BASE_TOPIC = 'wechat-lobby-china-isolated-room-' + roomNumber;
 
-        // 缓存记忆昵称与防死锁多名冲突分流
-        let savedRoom = localStorage.getItem('wechat_room_id') || '666';
-        let roomId = prompt("【防撞房间提示】\n请输入您专属的【房间号】(大家输入同一个房间号即可聚在一起):", savedRoom);
-        if(!roomId || roomId.trim() === "") roomId = '666';
-        localStorage.setItem('wechat_room_id', roomId.trim());
-
+        // 自定义改名与“福福的手下”以此类推兜底机制
         let savedName = localStorage.getItem('wechat_room_username') || '';
-        let customName = prompt("请输入您的【大厅聊天的昵称】(留空自动分配为 福福的手下X 号)：", savedName);
+        let customName = prompt(`您当前处于房间 [ ${roomNumber} ]\n\n请输入您的个性昵称（若留空，将自动分配为 福福的手下1、2、3...）：`, savedName);
         
         let myId = '';
         if (customName && customName.trim() !== "") {
             myId = customName.trim();
             localStorage.setItem('wechat_room_username', myId); 
         } else {
-            myId = '福福的手下' + Math.floor(Math.random() * 99 + 1);
+            // “福福的手下1,2,3...以此类推”自动化派生号，防止重名导致通道死锁
+            myId = '福福的手下' + Math.floor(Math.random() * 20 + 1);
         }
-
-        const ROOM_TOPIC = BASE_TOPIC + roomId.trim();
         
         let localStream = null;
         let isMuted = false;
+        
         const onlineUsers = {}; 
         const rtcPeers = {};    
 
-        // DOM 预锚定
         const chatBox = document.getElementById('chat-box');
         const usersGrid = document.getElementById('users-grid');
         const audioContainer = document.getElementById('audio-container');
@@ -236,92 +185,95 @@
         const voiceStatusBox = document.getElementById('voice-status-box');
         const errorLogBox = document.getElementById('error-log-box');
 
-        document.getElementById('room-id-span').innerText = roomId.trim();
-        document.getElementById('my-id').innerText = myId;
-
         // 表情初始化
         const emojis = ['😀','😂','🥰','😎','😭','😡','🥳','🤔','👍','👎','❤️','🔥','🎉','👀','🐶','🐱','✨','💯'];
         const emojiPicker = document.getElementById('emoji-picker');
-        if(emojiPicker) {
-            emojis.forEach(e => {
-                const span = document.createElement('span'); span.innerText = e;
-                span.onclick = () => { msgInput.value += e; emojiPicker.style.display = 'none'; msgInput.focus(); };
-                emojiPicker.appendChild(span);
-            });
-        }
-        function toggleEmojiPicker() { if(emojiPicker) emojiPicker.style.display = (emojiPicker.style.display === 'grid') ? 'none' : 'grid'; }
+        emojis.forEach(e => {
+            const span = document.createElement('span'); span.innerText = e;
+            span.onclick = () => { msgInput.value += e; emojiPicker.style.display = 'none'; msgInput.focus(); };
+            emojiPicker.appendChild(span);
+        });
+        function toggleEmojiPicker() { emojiPicker.style.display = (emojiPicker.style.display === 'grid') ? 'none' : 'grid'; }
         document.addEventListener('click', (e) => { if (!e.target.closest('.tool-bar-icons') && emojiPicker) emojiPicker.style.display = 'none'; });
 
-        // 连接国内加速 WSS MQTT 服务器
-        let mqttClient = null;
-        if (typeof mqtt !== 'undefined') {
-            mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt', { connectTimeout: 4000 });
+        // 连接国内优化的专线信道
+        const mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
 
-            mqttClient.on('connect', () => {
-                logSystem(`网络专线打通！您可以直接在右侧输入框打字畅聊。`);
-                mqttClient.subscribe(`${ROOM_TOPIC}/chat`);
-                mqttClient.subscribe(`${ROOM_TOPIC}/presence`);
-                mqttClient.subscribe(`${ROOM_TOPIC}/user/${myId}`);
-                publishPresence({ type: 'join', id: myId, wantsVoice: false });
-                renderUsersUI();
-            });
+        mqttClient.on('connect', () => {
+            document.getElementById('my-id').innerText = myId;
+            logSystem(`成功连入隔离房间 [${roomNumber}]！文字交互已实时互通。`);
+            
+            mqttClient.subscribe(`${BASE_TOPIC}/chat`);
+            mqttClient.subscribe(`${BASE_TOPIC}/presence`);
+            mqttClient.subscribe(`${BASE_TOPIC}/user/${myId}`);
 
-            mqttClient.on('message', async (topic, message) => {
-                try {
-                    const data = JSON.parse(message.toString());
-                    if (topic === `${ROOM_TOPIC}/chat`) {
-                        if (data.from === myId) return;
-                        if (data.msgType === 'text') logMessage(data.content, 'peer', data.from);
-                        if (data.msgType === 'image') logImage(data.from, data.content, 'peer');
-                    }
-                    else if (topic === `${ROOM_TOPIC}/presence`) {
-                        if (data.id === myId) return;
-                        if (data.type === 'join') {
-                            onlineUsers[data.id] = { wantsVoice: data.wantsVoice };
-                            sendDirectMsg(data.id, { type: 'reply-presence', from: myId, wantsVoice: !!localStream });
-                            logSystem(`群友 [${data.id}] 进入了聊天室`);
-                            renderUsersUI();
-                        } 
-                        else if (data.type === 'voice-state-change') {
-                            if (!onlineUsers[data.id]) onlineUsers[data.id] = {};
-                            onlineUsers[data.id].wantsVoice = data.wantsVoice;
-                            renderUsersUI();
-                            if (data.wantsVoice && localStream && myId > data.id) initiateVoiceCall(data.id);
-                        }
-                        else if (data.type === 'leave') {
-                            cleanupUser(data.id);
-                        }
-                    }
-                    else if (topic === `${ROOM_TOPIC}/user/${myId}`) {
-                        const fromPeer = data.from;
-                        if (data.type === 'reply-presence') {
-                            onlineUsers[fromPeer] = { wantsVoice: data.wantsVoice };
-                            renderUsersUI();
-                            if (data.wantsVoice && localStream && myId > fromPeer) initiateVoiceCall(fromPeer);
-                        }
-                        else if (data.type === 'offer') {
-                            handleOfferSignal(fromPeer, data.offer);
-                        }
-                        else if (data.type === 'answer') {
-                            if (rtcPeers[fromPeer]) await rtcPeers[fromPeer].setRemoteDescription(new RTCSessionDescription(data.answer));
-                        }
-                        else if (data.type === 'candidate') {
-                            if (rtcPeers[fromPeer]) await rtcPeers[fromPeer].addIceCandidate(new RTCIceCandidate(data.candidate));
-                        }
-                    }
-                } catch(e) {}
-            });
+            publishPresence({ type: 'join', id: myId, wantsVoice: false });
+            renderUsersUI();
+        });
 
-            setInterval(() => {
-                if (mqttClient && mqttClient.connected) {
-                    publishPresence({ type: 'join', id: myId, wantsVoice: !!localStream });
+        mqttClient.on('message', async (topic, message) => {
+            try {
+                const data = JSON.parse(message.toString());
+                
+                if (topic === `${BASE_TOPIC}/chat`) {
+                    if (data.from === myId) return;
+                    if (data.msgType === 'text') logMessage(data.content, 'peer', data.from);
+                    if (data.msgType === 'image') logImage(data.from, data.content, 'peer');
                 }
-            }, 5000);
-        }
+                else if (topic === `${BASE_TOPIC}/presence`) {
+                    if (data.id === myId) return;
+                    
+                    if (data.type === 'join') {
+                        onlineUsers[data.id] = { wantsVoice: data.wantsVoice };
+                        sendDirectMsg(data.id, { type: 'reply-presence', from: myId, wantsVoice: !!localStream });
+                        logSystem(`群友 [${data.id}] 进入了聊天室`);
+                        renderUsersUI();
+                    } 
+                    else if (data.type === 'voice-state-change') {
+                        if (!onlineUsers[data.id]) onlineUsers[data.id] = {};
+                        onlineUsers[data.id].wantsVoice = data.wantsVoice;
+                        renderUsersUI();
+                        if (data.wantsVoice && localStream && myId > data.id) {
+                            initiateVoiceCall(data.id);
+                        }
+                    }
+                    else if (data.type === 'leave') {
+                        cleanupUser(data.id);
+                    }
+                }
+                else if (topic === `${BASE_TOPIC}/user/${myId}`) {
+                    const fromPeer = data.from;
+                    
+                    if (data.type === 'reply-presence') {
+                        onlineUsers[fromPeer] = { wantsVoice: data.wantsVoice };
+                        renderUsersUI();
+                        if (data.wantsVoice && localStream && myId > fromPeer) {
+                            initiateVoiceCall(fromPeer);
+                        }
+                    }
+                    else if (data.type === 'offer') {
+                        handleOfferSignal(fromPeer, data.offer);
+                    }
+                    else if (data.type === 'answer') {
+                        if (rtcPeers[fromPeer]) await rtcPeers[fromPeer].setRemoteDescription(new RTCSessionDescription(data.answer));
+                    }
+                    else if (data.type === 'candidate') {
+                        if (rtcPeers[fromPeer]) await rtcPeers[fromPeer].addIceCandidate(new RTCIceCandidate(data.candidate));
+                    }
+                }
+            } catch(e) {}
+        });
 
-        // === WebRTC 底层传输挂载 ===
+        setInterval(() => {
+            if (mqttClient && mqttClient.connected) {
+                publishPresence({ type: 'join', id: myId, wantsVoice: !!localStream });
+            }
+        }, 5000);
+
+        // === 3. 原生 WebRTC 核心架构 ===
         function createRtcConnection(targetId) {
             if (rtcPeers[targetId]) return rtcPeers[targetId];
+
             const pc = new RTCPeerConnection(rtcConfig);
             rtcPeers[targetId] = pc;
 
@@ -340,17 +292,21 @@
                     audioEl.id = 'audio-' + targetId;
                     audioEl.setAttribute('autoplay', 'true');
                     audioEl.setAttribute('playsinline', 'true'); 
-                    if(audioContainer) audioContainer.appendChild(audioEl);
+                    audioContainer.appendChild(audioEl);
                 }
+                
                 audioEl.srcObject = e.streams[0] || new MediaStream([e.track]);
                 audioEl.muted = false;
                 audioEl.volume = 1.0;
-                audioEl.play().catch(err => console.log("等待手势激活放音", err));
+
+                // 强制触发播放
+                audioEl.play().catch(err => console.log("等待全局触碰动作激活放音", err));
             };
 
             pc.onconnectionstatechange = () => {
                 if (pc.connectionState === 'failed' || pc.connectionState === 'closed') cleanupUser(targetId);
             };
+
             return pc;
         }
 
@@ -369,33 +325,84 @@
             sendDirectMsg(fromPeer, { type: 'answer', from: myId, answer: answer });
         }
 
-        function printError(text) {
-            if(errorLogBox) {
-                errorLogBox.innerText = text;
-                errorLogBox.style.display = 'block';
+        // === 4. 开启麦克风大厅模块 ===
+        async function joinGlobalVoice() {
+            if (localStream) return;
+            errorLogBox.style.display = 'none';
+
+            // 解锁 AudioContext
+            unlockAudioContext();
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                printError("浏览器拦截：非 HTTPS 安全网址下禁止开麦，请确保网址以 https:// 开头并用自带浏览器打开！");
+                return;
+            }
+
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                voiceStatusBox.innerText = "🟢 已进入群语音通话";
+                voiceStatusBox.className = "status-box active";
+                document.getElementById('btn-join').style.display = 'none';
+                document.getElementById('btn-mute').style.display = 'inline-block';
+
+                publishPresence({ type: 'voice-state-change', id: myId, wantsVoice: true });
+
+                Object.keys(onlineUsers).forEach(pId => {
+                    if (onlineUsers[pId].wantsVoice && myId > pId) initiateVoiceCall(pId);
+                });
+                logSystem('你的麦克风成功启用，大家现在能听到你说话了！');
+            } catch (err) {
+                let msg = `激活失败: `;
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    msg += "权限被拒绝，请点击浏览器左侧 🔒 允许使用麦克风。";
+                } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                    msg += "麦克风被其他语音程序（如微信电话）占用，请彻底清除后台应用后再试。";
+                } else {
+                    msg += "未检测到设备，或发生未知硬件死锁。";
+                }
+                printError(msg);
             }
         }
 
-        // 盲解唤醒器
-        function forcePlayAllAudios() {
+        function printError(text) {
+            errorLogBox.innerText = text;
+            errorLogBox.style.display = 'block';
+        }
+
+        // === 【全局无感自愈核心】：监听全屏任意点击，强行唤醒苹果/安卓的所有音频播放流 ===
+        function unlockAudioContext() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    const ctx = new AudioContext();
+                    if (ctx.state === 'suspended') ctx.resume();
+                }
+            } catch(e) {}
+        }
+
+        function playAllGroundedAudios() {
             if(!audioContainer) return;
             const audios = audioContainer.getElementsByTagName('audio');
             for (let audio of audios) { 
-                if (audio.paused) { audio.muted = false; audio.play().catch(e => {}); }
+                if (audio.paused) {
+                    audio.muted = false;
+                    audio.play().catch(e => console.log("放音自愈修复失败:", e));
+                }
             }
         }
-        document.addEventListener('click', () => { forcePlayAllAudios(); }, true);
-        document.addEventListener('touchstart', () => { forcePlayAllAudios(); }, true);
+
+        // 捕获全网点击手势实现盲解放音
+        document.addEventListener('click', () => { unlockAudioContext(); playAllGroundedAudios(); }, true);
+        document.addEventListener('touchstart', () => { unlockAudioContext(); playAllGroundedAudios(); }, true);
 
         function toggleMute() {
             if (!localStream) return;
             isMuted = !isMuted;
             localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
             const btn = document.getElementById('btn-mute');
-            if (btn) {
-                if (isMuted) { btn.innerText = "body 已暂停说话"; btn.className = "we-btn primary"; } 
-                else { btn.innerText = "🎙️ 静音麦克风"; btn.className = "we-btn warn"; }
-            }
+            if (isMuted) { btn.innerText = "body 已暂停说话"; btn.className = "we-btn primary"; } 
+            else { btn.innerText = "🎙️ 静音麦克风"; btn.className = "we-btn warn"; }
         }
 
         function cleanupUser(pId) {
@@ -413,33 +420,37 @@
             publishPresence({ type: 'leave', id: myId });
         });
 
-        // === 微信对话公屏流 ===
+        // === 6. 微信对话公屏流 ===
         function handleKeyPress(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTextMsg(); } }
         
         function sendTextMsg() {
-            if (!mqttClient || !mqttClient.connected) return alert("📢 您当前处于离网状态，发送失败，请检查网络！");
             const text = msgInput.value.trim(); if (!text) return;
             logMessage(text, 'me', myId);
-            mqttClient.publish(`${ROOM_TOPIC}/chat`, JSON.stringify({ from: myId, msgType: 'text', content: text }));
+            if(mqttClient && mqttClient.connected) {
+                mqttClient.publish(`${ROOM_TOPIC}/chat`, JSON.stringify({ from: myId, msgType: 'text', content: text }));
+            }
             msgInput.value = '';
         }
 
         function sendImage(input) {
-            if (!mqttClient || !mqttClient.connected) return alert("📢 图片发送需要建立网络连接！");
             const file = input.files[0]; if (!file || file.size > 2 * 1024 * 1024) return alert('⚠️ 图片不能超过 2MB！');
             const r = new FileReader();
             r.onload = function(e) {
                 const base64 = e.target.result;
                 logImage('我', base64, 'me');
-                mqttClient.publish(`${ROOM_TOPIC}/chat`, JSON.stringify({ from: myId, msgType: 'image', content: base64 }));
+                if(mqttClient && mqttClient.connected) {
+                    mqttClient.publish(`${ROOM_TOPIC}/chat`, JSON.stringify({ from: myId, msgType: 'image', content: base64 }));
+                }
             };
             r.readAsDataURL(file); input.value = '';
         }
 
+        // === 7. 微信气泡渲染器 ===
         function logMessage(m, type, senderId) {
             const wrapper = document.createElement('div'); wrapper.className = `msg-wrapper ${type}`;
             const avatar = document.createElement('div'); avatar.className = 'user-avatar';
             avatar.innerText = type === 'me' ? '我' : senderId.charAt(0).toUpperCase();
+            
             const contentBox = document.createElement('div'); contentBox.className = 'msg-content-box';
             if (type === 'peer') {
                 const author = document.createElement('div'); author.className = 'msg-author'; author.innerText = senderId;
@@ -456,6 +467,7 @@
             const wrapper = document.createElement('div'); wrapper.className = `msg-wrapper ${type}`;
             const avatar = document.createElement('div'); avatar.className = 'user-avatar';
             avatar.innerText = type === 'me' ? '我' : senderName.charAt(0).toUpperCase();
+            
             const contentBox = document.createElement('div'); contentBox.className = 'msg-content-box';
             if (type === 'peer') {
                 const author = document.createElement('div'); author.className = 'msg-author'; author.innerText = senderName;
@@ -477,7 +489,6 @@
         document.getElementById('room-title').innerText = `大群聊 - 房间 ${roomId}`;
 
         function renderUsersUI() {
-            if(!usersGrid) return;
             usersGrid.innerHTML = '';
             usersGrid.appendChild(createUserPill(myId, true, !!localStream));
             Object.keys(onlineUsers).forEach(id => {
