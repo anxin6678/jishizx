@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>微信大厅 · 大陆畅通无阻版</title>
+    <title>微信大厅 · 终极全内核通杀版</title>
     <script src="https://npm.elemecdn.com/mqtt@5.5.1/dist/mqtt.min.js"></script>
     <style>
         /* 微信官方官方视觉配色 */
@@ -18,7 +18,6 @@
         }
         * { box-sizing: border-box; }
         
-        /* 锁死外层视窗，防止全面屏手机橡皮筋回弹错位 */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #e9e9e9; color: var(--text-main); margin: 0; padding: 0; height: 100vh; width: 100vw; display: flex; justify-content: center; align-items: center; overflow: hidden; position: fixed; inset: 0; }
         
         /* 微信主容器 */
@@ -53,7 +52,7 @@
         
         .user-pill { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
         
-        /* 微信圆角方形头像框 */
+        /* 头像 */
         .user-avatar { width: 40px; height: 40px; border-radius: 4px; background: #5b92e5; color: white; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: bold; text-transform: uppercase; overflow: hidden; flex-shrink: 0; position: relative; cursor: pointer; border: 1px solid rgba(0,0,0,0.05); }
         .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .user-pill.me .user-avatar { background: var(--wechat-green); }
@@ -64,7 +63,7 @@
         .user-name { font-size: 0.95em; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .user-ip { font-size: 0.75em; color: var(--text-grey); margin-top: 2px; }
 
-        /* 视内微型音频宿主，彻底阻断 iPad / 手机系统的黑屏断流省电策略 */
+        /* 视内活跃音频宿主 */
         .safe-audio-host { width: 2px; height: 2px; opacity: 0.01; overflow: hidden; background: transparent; border: none; margin-top: auto; }
 
         /* 右侧打字公屏区 */
@@ -98,16 +97,13 @@
         button.we-send-btn { background: #f5f5f5; color: var(--wechat-green); border: 1px solid #e5e5e5; padding: 6px 18px; border-radius: 4px; font-size: 0.9em; font-weight: 500; cursor: pointer; }
         button.we-send-btn:hover { background: #e5e5e5; }
 
-        /* 扩容级多行滚动表情面板 */
         .emoji-picker { position: absolute; bottom: 150px; left: 25px; background: white; border: 1px solid #e5e5e5; padding: 12px; border-radius: 4px; display: none; grid-template-columns: repeat(8, 1fr); gap: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); z-index: 100; width: 300px; max-height: 210px; overflow-y: auto; }
         .emoji-picker span { cursor: pointer; font-size: 1.4em; text-align: center; }
 
-        /* ================= 📱 手机端深度自适应：绝对边界强制锁死 ================= */
         @media (max-width: 768px) {
             .wechat-container { position: absolute; inset: 0; width: 100vw; height: 100vh; max-height: none; max-width: none; flex-direction: column; }
             .left-panel { width: 100%; height: auto; flex: none; border-right: none; border-bottom: 1px solid #e5e5e5; }
             .left-header { display: none; } .member-section { display: none; } 
-            
             .voice-card { padding: 10px 15px; display: flex; flex-direction: column; gap: 4px; background: #fafafa; }
             .status-box { margin-bottom: 4px; width: 100%; padding: 6px; font-size: 0.78em; }
             .voice-ctrl-btns { display: flex; gap: 8px; width: 100%; }
@@ -115,7 +111,6 @@
             .slider-group-mobile { display: flex; gap: 12px; width: 100%; margin-top: 4px; }
             .slider-wrap { flex: 1; margin-top: 0; font-size: 0.75em; }
             .error-log-box { width: 100%; margin-top: 4px; font-size: 0.78em; }
-
             .right-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
             .right-header { display: none; } 
             #chat-box { padding: 12px; flex: 1; }
@@ -137,7 +132,7 @@
                 <input type="file" id="avatar-input" accept="image/*" style="display: none;" onchange="uploadAvatar(this)">
                 
                 <div class="left-header-info">
-                    <h2>微信大厅 · 全自愈版</h2>
+                    <h2>微信大厅 · 终极全自愈</h2>
                     <p>房间号: <span id="room-id-span" style="color: var(--wechat-green); font-weight: bold;">-</span></p>
                     <p>我的昵称: <span id="my-id" style="font-weight: bold; color: #555;">设置中...</span></p>
                 </div>
@@ -190,7 +185,6 @@
     </div>
 
     <script>
-        // 全自动异步高速锁定自身的公网 IP
         let myIpAddr = '获取中...';
         async function fetchMyIpAddress() {
             try {
@@ -207,19 +201,35 @@
         }
         fetchMyIpAddress();
 
-        // 顶层挂载，绝对防浏览器GC垃圾回收
+        // 顶层挂载，绝对防浏览器垃圾回收
         window.globalAudioCtx = null;
         window.audioSource = null;
         window.hardwareStream = null;
         window.micGainNode = null;
         let globalSpeakerVolume = 1.0; 
 
-        // === 【核心修复】：国内全兼容三重自愈式麦克风开麦逻辑 ===
+        // === 【新增：跨时代内核垫片总线 Polyfill】 ===
+        // 专门攻克国内夸克、UC、老旧微信等死活不支持标准 API 的灾难
+        function crossBrowserGetUserMedia(constraints) {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                return navigator.mediaDevices.getUserMedia(constraints);
+            }
+            // 强力捞回老内核独占式前缀接口
+            const legacyGetUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+            if (legacyGetUserMedia) {
+                return new Promise((resolve, reject) => {
+                    legacyGetUserMedia.call(navigator, constraints, resolve, reject);
+                });
+            }
+            return Promise.reject(new Error("NotSupportedError"));
+        }
+
+        // === 【核心重构】：全自愈开麦调度链路 ===
         window.joinGlobalVoice = async function() {
             if (localStream) return;
             errorLogBox.style.display = 'none';
 
-            // 1. 同步时间线上抢先解冻音频上下文，防范苹果/安卓的手势过期拦截
+            // 1. 抢先在最前面同步激活音频上下文，防范苹果/安卓的手势过期拦截
             try {
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
                 if (!window.globalAudioCtx) window.globalAudioCtx = new AudioContextClass();
@@ -227,39 +237,37 @@
             } catch(e) { console.error("调音上下文异常:", e); }
 
             if (typeof mqtt === 'undefined' || !mqttClient) {
-                printError("⛔ 核心协议尚未加载，国内网络正在动态调路。请在网络优良处等待 3 秒后，或强制刷新网页！");
+                printError("⛔ 核心协议尚未加载，国内专线正在调路。请在网络良好处等待 3 秒后重试！");
                 return;
             }
 
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                printError("⛔ 安全阻断：由于浏览器底层安全策略，麦克风只能在开头的 https:// 链接下运行。若您在微信内打开，请务必点击右上角选择“在外部浏览器/Safari中打开”！");
-                return;
-            }
-
-            // 2. 【核心多级降级自愈链】：专治各种国内魔改、占线或无高级特性设备
+            // 2. 三级约束递降无感自愈开麦
             let successStream = null;
             
-            // 一级配置：标准参数请求
+            // 【一级测试】：标准高级约束调取
             try {
-                successStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                successStream = await crossBrowserGetUserMedia({ audio: true });
             } catch (e1) {
-                console.warn("一级音频标准捕获失败，正在降级启用二级单声道兼容流...", e1);
-                // 二级配置：剔除回声消除等多媒体指令，防止因硬件不支持抛出死锁
+                console.warn("一级标准录音捕获失败，启动二级去特效降级模式...", e1);
+                
+                // 【二级测试】：关闭回声消除等高级硬件约束，降级为裸声道采集（专治部分旧手机/蓝牙耳机死锁）
                 try {
-                    successStream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: { echoCancellation: false, noiseSuppression: false } 
+                    successStream = await crossBrowserGetUserMedia({ 
+                        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } 
                     });
                 } catch (e2) {
-                    console.error("二级音频兼容捕获彻底失败", e2);
+                    console.error("二级录音捕获全面沦陷", e2);
                     
-                    // 彻底失败，向屏幕吐露精准的底层硬件病灶代码
-                    let msg = `❌ 硬件开麦失败 [代码:${e1.name || 'Unknown'}] -> `;
+                    // 精准透传错误码，帮用户排查环境问题
+                    let msg = `❌ 硬件开麦失败 [内核错误:${e1.name || 'Unknown'}] -> `;
                     if (e1.name === 'NotAllowedError' || e1.name === 'PermissionDeniedError') {
-                        msg += "麦克风访问已被你手动拒绝！请点击浏览器地址栏左侧的 🔒 锁图标，手动将麦克风修改为“允许”后刷新网页。";
+                        msg += "麦克风被您手动拒绝了！请点击网址左侧的 🔒 锁图标，将麦克风设置为“允许”后刷新网页。";
                     } else if (e1.name === 'NotReadableError' || e1.name === 'TrackStartError') {
-                        msg += "硬件被霸占！麦克风当前正被其他后台程序（如正在打的微信电话、系统语音通话、游戏语音等）强行锁死。请彻底清理后台其他多媒体软件，重新打开网页尝试。";
+                        msg += "硬件被强行霸占！麦克风当前正被微信电话、QQ语音、游戏语音等后台软件死锁。请彻底清理手机后台后重进！";
+                    } else if (e1.name === 'NotSupportedError') {
+                        msg += "系统环境不支持！当前浏览器彻底封死了录音接口，或者当前网址未开启安全HTTPS协议（http://链接无法开麦）。";
                     } else {
-                        msg += "硬件缺失！未检测到任何输入设备（台式机请确认外接带有麦克风的耳机插头已插对、插稳）。";
+                        msg += "未检测到输入设备（台式机请确认外接耳机麦克风插头已插对、插稳）。";
                     }
                     printError(msg);
                     return;
@@ -268,7 +276,7 @@
 
             window.hardwareStream = successStream;
 
-            // 3. 【混音器自愈隔离】：尝试将麦克风接入调音台滑块。若部分魔改系统在此死锁，自动剥离调音台，使用纯原生流直连
+            // 3. 调音台防断线闭环接通
             try {
                 window.audioSource = window.globalAudioCtx.createMediaStreamSource(window.hardwareStream);
                 window.micGainNode = window.globalAudioCtx.createGain();
@@ -279,14 +287,14 @@
                 window.audioSource.connect(window.micGainNode);
                 window.micGainNode.connect(destination);
                 
-                localStream = destination.stream; // 连线闭环大功告成！
+                localStream = destination.stream; // 信道彻底闭环！
             } catch (mixerErr) {
-                console.warn("混音放大器接通失败，已触发自动降级，直连底层纯原生硬件通道传输语音:", mixerErr);
-                localStream = window.hardwareStream; // 直连过桥自愈
+                console.warn("调音台桥接挂起，触发无缝过桥，直接使用底层原生硬件流直发语音:", mixerErr);
+                localStream = window.hardwareStream; // 安全自愈过桥
             }
 
-            // 4. 修改语音大厅界面
-            voiceStatusBox.innerText = "🟢 已接入群语音通话中";
+            // 修改界面状态
+            voiceStatusBox.innerText = "🟢 已进入群语音通话中";
             voiceStatusBox.className = "status-box active";
             document.getElementById('btn-join').style.display = 'none';
             document.getElementById('btn-mute').style.display = 'inline-block';
@@ -323,7 +331,7 @@
 
         const BASE_TOPIC = 'wechat-lobby-china-isolated-room-v8/';
         let savedRoom = localStorage.getItem('wechat_room_id') || '666';
-        let roomId = prompt("【专属频道隔离提示】\n请输入专属【房间号】(大家输入相同数字即可聚在一处接头):", savedRoom);
+        let roomId = prompt("【专属频道隔离提示】\n请输入专属【房间号】(群友输入相同数字即可聚在一处交互):", savedRoom);
         if(!roomId || roomId.trim() === "") roomId = '666';
         localStorage.setItem('wechat_room_id', roomId.trim());
 
@@ -451,7 +459,7 @@
                 audioContainer.appendChild(audioEl);
                 audioEl.srcObject = e.streams[0] || new MediaStream([e.track]);
                 audioEl.muted = false; audioEl.volume = globalSpeakerVolume;
-                audioEl.play().catch(err => console.log("流挂起，待轻触手势盲解", err));
+                audioEl.play().catch(err => console.log("流挂起，待点击触碰盲解", err));
             };
             pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' || pc.connectionState === 'closed') cleanupUser(targetId); };
             return pc;
@@ -470,7 +478,7 @@
 
         function printError(text) { errorLogBox.innerText = text; errorLogBox.style.display = 'block'; }
 
-        // 全局无感手势唤醒声音盲解器
+        // 全局手势唤醒声音盲解器
         function forcePlayAllAudios() {
             if(!audioContainer) return;
             const audios = audioContainer.getElementsByTagName('audio');
@@ -519,6 +527,8 @@
             r.readAsDataURL(file); input.value = '';
         }
 
+        document.getElementById('room-title').innerText = `大群聊 - 房间 ${roomId}`;
+
         function buildAvatarHTML(id, avatarBase64) {
             if (avatarBase64 && avatarBase64.startsWith('data:image')) return `<img src="${avatarBase64}">`;
             return id.charAt(0).toUpperCase();
@@ -565,8 +575,6 @@
             const div = document.createElement('div'); div.className = 'msg-system'; div.innerHTML = `<span>${m}</span>`;
             chatBox.appendChild(div); chatBox.scrollTop = chatBox.scrollHeight;
         }
-
-        document.getElementById('room-title').innerText = `大群聊 - 房间 ${roomId}`;
 
         function renderUsersUI() {
             if(!usersGrid) return; usersGrid.innerHTML = '';
