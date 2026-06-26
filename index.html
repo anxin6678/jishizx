@@ -84,7 +84,6 @@
     <div id="audio-container"></div>
 
     <script>
-        // === 核心配置与防抖状态锁 ===
         const GLOBAL_ROOM_TOPIC = 'github-pages-global-lobby-unique-2026';
         const myId = 'User_' + Math.random().toString(36).substr(2, 4).toUpperCase();
         
@@ -93,14 +92,14 @@
         
         const dataConns = {}; 
         const mediaCalls = {}; 
-        const knownPeers = new Set(); // 新增：状态锁，记录已经认识的人，防止死循环重连
+        const knownPeers = new Set(); 
 
         const chatBox = document.getElementById('chat-box');
         const usersGrid = document.getElementById('users-grid');
         const audioContainer = document.getElementById('audio-container');
         const msgInput = document.getElementById('msg-input');
 
-        // === 1. 初始化表情包面板 ===
+        // === 1. 初始化表情包 ===
         const emojis = ['😀','😂','🥰','😎','😭','😡','🥳','🤔','👍','👎','❤️','💔','🔥','🎉','💩','🤡','👻','👽','👀','🐶','🐱'];
         const emojiPicker = document.getElementById('emoji-picker');
         emojis.forEach(e => {
@@ -121,22 +120,35 @@
             if (!e.target.closest('.flex') && emojiPicker) emojiPicker.style.display = 'none';
         });
 
-        // === 2. 初始化 PeerJS & MQTT ===
-        const peer = new Peer(myId);
+        // === 2. 初始化 PeerJS (升级多重穿透 STUN 核心配置) ===
+        const peer = new Peer(myId, {
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' },
+                    { urls: 'stun:stun.ekiga.net' }
+                ]
+            }
+        });
+
+        // 初始化 MQTT
         const mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
 
         peer.on('open', (id) => logSystem(`网络就绪，你的身份是: ${id}`));
-        peer.on('error', (err) => console.error(err));
+        peer.on('error', (err) => console.error("PeerJS错误:", err));
 
         mqttClient.on('connect', () => {
             mqttClient.subscribe(GLOBAL_ROOM_TOPIC);
-            console.log('大喇叭已连接');
+            console.log('寻人广播大喇叭已连接');
         });
 
         mqttClient.on('message', (topic, message) => {
             const incomingId = message.toString();
-            // 如果听到别人上线，且我不在他的列表中，就主动连他
+            // 听到别人上线广播，且我还不认识他，且我自己在大厅里，主动去发起连接
             if (incomingId !== myId && !knownPeers.has(incomingId) && localStream) {
+                console.log(`收到上线广播，主动握手连接: ${incomingId}`);
                 connectToPeer(incomingId);
             }
         });
@@ -162,28 +174,37 @@
 
             try {
                 const overlay = document.getElementById('join-overlay');
-                if (overlay) {
-                    overlay.style.background = '#d4edda';
-                    overlay.style.border = '2px solid #28a745';
-                }
+                if (overlay) overlay.style.background = '#d4edda'; overlay.style.border = '2px solid #28a745';
                 const title = document.getElementById('lobby-status-title');
-                if (title) {
-                    title.innerText = '✅ 你已进入大厅！正在接收和发送语音...';
-                    title.style.color = '#155724';
-                }
+                if (title) { title.innerText = '✅ 你已进入大厅！正在接收和发送语音...'; title.style.color = '#155724'; }
                 const desc = document.getElementById('lobby-status-desc');
                 if (desc) desc.style.display = 'none';
-
                 const btnJoin = document.getElementById('btn-join');
                 if (btnJoin) btnJoin.style.display = 'none';
-
                 const btnMute = document.getElementById('btn-mute');
                 if (btnMute) btnMute.style.display = 'inline-block';
 
                 renderUsersUI(); 
+                
+                // 【核心升级：启动周期呼叫机制】
+                // 刚进大厅时立刻喊一声
                 mqttClient.publish(GLOBAL_ROOM_TOPIC, myId);
-                logSystem('已广播你的上线状态。你现在可以说话和发送图片了。');
-            } catch (domErr) { console.error("UI错误:", domErr); }
+                
+                // 开启定时任务：如果大厅里没连上任何人，每隔 4 秒向全网疯狂广播一次，直到连上人为止！
+                const checkExistenceInterval = setInterval(() => {
+                    if (!localStream) { 
+                        clearInterval(checkExistenceInterval); 
+                        return; 
+                    }
+                    // 如果当前连接的好友数为 0，说明没跟大厅大部队接头，继续广播呼叫
+                    if (Object.keys(dataConns).length === 0) {
+                        console.log("大厅尚无其他人响应，正在发起自愈同步广播...");
+                        mqttClient.publish(GLOBAL_ROOM_TOPIC, myId);
+                    }
+                }, 4000);
+
+                logSystem('已进入语音大厅，正在全自动对接房间内的其他用户...');
+            } catch (domErr) { console.error(domErr); }
         }
 
         function toggleMute() {
@@ -203,11 +224,12 @@
             }
         }
 
-        // === 4. P2P 连接与传染自愈机制 (Gossip Protocol) ===
+        // === 4. P2P 网络自愈传输 (Gossip 传染协议) ===
         function connectToPeer(targetId) {
-            if (targetId === myId || knownPeers.has(targetId)) return; // 防死循环锁
+            if (targetId === myId || knownPeers.has(targetId)) return; 
             knownPeers.add(targetId);
 
+            console.log(`🚀 开始向 [${targetId}] 建立P2P信道...`);
             const conn = peer.connect(targetId);
             setupDataConnection(conn);
             const call = peer.call(targetId, localStream);
@@ -227,7 +249,7 @@
                 knownPeers.add(conn.peer);
                 logSystem(`与 [${conn.peer}] 成功建立通道`);
                 renderUsersUI(); 
-                broadcastRoomSync(); // 新增：传染协议，把当前所有人名单发给新连进来的人
+                broadcastRoomSync(); // 传染同步：只要连上一个人，就把所有人的名单同步给他
             });
 
             conn.on('data', (dataStr) => {
@@ -238,22 +260,20 @@
                     } else if (data.type === 'image') {
                         logImage(conn.peer, data.data, 'peer');
                     } else if (data.type === 'sync_peers') {
-                        // 新增：收到传染协议，自动去连接我还不认识的人！
+                        // 收到老哥发来的大厅花名册，抓取我不认识的人自动重连！
                         data.peers.forEach(peerId => {
                             if (peerId !== myId && !knownPeers.has(peerId)) {
+                                console.log(`[传染网络自愈] 发现未连线成员: ${peerId}，执行后台打通...`);
                                 connectToPeer(peerId);
                             }
                         });
                     } else if (data.type === 'leave') {
-                        // 新增：对方明确告诉我他要刷新或关网页了
                         cleanupPeer(conn.peer, true);
                     }
-                } catch(e) { console.error("解析数据失败", e); }
+                } catch(e) {}
             });
 
-            conn.on('close', () => {
-                cleanupPeer(conn.peer, false);
-            });
+            conn.on('close', () => cleanupPeer(conn.peer, false));
         }
 
         function setupMediaCall(call) {
@@ -273,30 +293,18 @@
             mediaCalls[call.peer] = call;
         }
 
-        // 统一的清理断开用户函数 (根除幽灵用户)
         function cleanupPeer(peerId, explicitLeave) {
-            if (dataConns[peerId]) {
-                dataConns[peerId].close();
-                delete dataConns[peerId];
-            }
-            if (mediaCalls[peerId]) {
-                mediaCalls[peerId].close();
-                delete mediaCalls[peerId];
-            }
+            if (dataConns[peerId]) { dataConns[peerId].close(); delete dataConns[peerId]; }
+            if (mediaCalls[peerId]) { mediaCalls[peerId].close(); delete mediaCalls[peerId]; }
             knownPeers.delete(peerId);
             
             const audioEl = document.getElementById('audio-' + peerId);
             if (audioEl) audioEl.remove();
 
             renderUsersUI();
-            if (explicitLeave) {
-                logSystem(`[${peerId}] 刷新或退出了大厅`);
-            } else {
-                logSystem(`[${peerId}] 断开了连接`);
-            }
+            logSystem(`[${peerId}] 离开了大厅`);
         }
 
-        // === 新增：防止刷新产生幽灵用户（关闭网页前向大家告别） ===
         window.addEventListener('beforeunload', () => {
             const leaveMsg = JSON.stringify({ type: 'leave' });
             for (let peerId in dataConns) {
@@ -314,7 +322,7 @@
             }
         }
 
-        // === 5. 发送功能 (文字 / 图片) ===
+        // === 5. 发送机制 ===
         function sendTextMsg() {
             if (!msgInput) return;
             const text = msgInput.value.trim();
@@ -322,100 +330,65 @@
             if (!localStream) return alert("请先点击进入大厅！");
             
             logMessage(`[我]: ${text}`, 'me');
-            
             const msgData = JSON.stringify({ type: 'chat', text: text });
-            for (let peerId in dataConns) {
-                dataConns[peerId].send(msgData);
-            }
+            for (let peerId in dataConns) { dataConns[peerId].send(msgData); }
             msgInput.value = '';
             if(emojiPicker) emojiPicker.style.display = 'none';
         }
 
         function sendImage(inputElement) {
             if (!localStream) return alert("请先点击进入大厅才能发送图片！");
-            
             const file = inputElement.files[0];
             if (!file) return;
-
-            if (file.size > 2 * 1024 * 1024) {
-                alert('⚠️ 图片不能超过 2MB！请压缩后重试。');
-                inputElement.value = '';
-                return;
-            }
+            if (file.size > 2 * 1024 * 1024) { alert('⚠️ 图片不能超过 2MB！'); inputElement.value = ''; return; }
 
             const reader = new FileReader();
             reader.onload = function(e) {
                 const base64Data = e.target.result;
                 logImage('我', base64Data, 'me'); 
-                
                 const msgData = JSON.stringify({ type: 'image', data: base64Data });
-                for (let peerId in dataConns) {
-                    dataConns[peerId].send(msgData); 
-                }
+                for (let peerId in dataConns) { dataConns[peerId].send(msgData); }
             };
             reader.readAsDataURL(file);
             inputElement.value = '';
         }
 
-        // === 6. UI 渲染工具函数 ===
+        // === 6. 辅助 UI ===
         function logMessage(msg, type) {
             if(!chatBox) return;
-            const div = document.createElement('div');
-            div.className = `msg ${type}`;
-            div.innerText = msg;
-            chatBox.appendChild(div);
-            chatBox.scrollTop = chatBox.scrollHeight;
+            const div = document.createElement('div'); div.className = `msg ${type}`; div.innerText = msg;
+            chatBox.appendChild(div); chatBox.scrollTop = chatBox.scrollHeight;
         }
 
         function logImage(senderName, base64Data, type) {
             if(!chatBox) return;
-            const div = document.createElement('div');
-            div.className = `msg ${type}`;
-            
-            const nameSpan = document.createElement('div');
-            nameSpan.innerText = `[${senderName}]:`;
-            nameSpan.style.marginBottom = '4px';
-            
-            const img = document.createElement('img');
-            img.src = base64Data;
-            img.className = 'chat-img';
+            const div = document.createElement('div'); div.className = `msg ${type}`;
+            const nameSpan = document.createElement('div'); nameSpan.innerText = `[${senderName}]:`; nameSpan.style.marginBottom = '4px';
+            const img = document.createElement('img'); img.src = base64Data; img.className = 'chat-img';
             img.onclick = () => window.open(base64Data); 
-            
-            div.appendChild(nameSpan);
-            div.appendChild(img);
-            
-            chatBox.appendChild(div);
+            div.appendChild(nameSpan); div.appendChild(img); chatBox.appendChild(div);
             setTimeout(() => { chatBox.scrollTop = chatBox.scrollHeight; }, 100);
         }
 
-        function logSystem(msg) {
-            logMessage(`— ${msg} —`, 'system');
-        }
+        function logSystem(msg) { logMessage(`— ${msg} —`, 'system'); }
 
         function renderUsersUI() {
             if(!usersGrid) return;
             usersGrid.innerHTML = ''; 
             if (myId && localStream) usersGrid.appendChild(createUserPill(myId, true));
-            Object.keys(dataConns).forEach(peerId => {
-                usersGrid.appendChild(createUserPill(peerId, false));
-            });
+            Object.keys(dataConns).forEach(peerId => { usersGrid.appendChild(createUserPill(peerId, false)); });
             
             if(Object.keys(dataConns).length === 0 && localStream) {
-                usersGrid.innerHTML += `<span style="color:#999; font-size:0.9em; margin-top:5px;">目前大厅只有你一个人，等待其他人打开网页...</span>`;
+                usersGrid.innerHTML += `<span style="color:#999; font-size:0.9em; margin-top:5px;">正在持续连线大厅成员，请稍候（若长时间无响应，请确保对方也已进入大厅）...</span>`;
             }
         }
 
         function createUserPill(id, isMe) {
-            const div = document.createElement('div');
-            div.className = `user-pill ${isMe ? 'me' : ''}`;
-            const avatar = document.createElement('div');
-            avatar.className = 'user-avatar';
+            const div = document.createElement('div'); div.className = `user-pill ${isMe ? 'me' : ''}`;
+            const avatar = document.createElement('div'); avatar.className = 'user-avatar';
             avatar.innerText = id.substring(id.indexOf('_')+1, id.indexOf('_')+2); 
-            const name = document.createElement('span');
-            name.innerText = isMe ? `${id} (我)` : id;
-            div.appendChild(avatar);
-            div.appendChild(name);
-            return div;
+            const name = document.createElement('span'); name.innerText = isMe ? `${id} (我)` : id;
+            div.appendChild(avatar); div.appendChild(name); return div;
         }
     </script>
 </body>
