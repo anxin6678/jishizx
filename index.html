@@ -2,97 +2,61 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>微信大厅 · 完美修复版</title>
-    <script src="https://cdn.jsdelivr.net/npm/mqtt@5.5.1/dist/mqtt.min.js"></script>
+    <title>Web聊天大厅</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
-        :root { --wechat-green: #07c160; --wechat-bg: #f3f3f3; }
-        body { font-family: -apple-system, sans-serif; background: #e9e9e9; margin: 0; padding: 0; height: 100vh; display: flex; justify-content: center; align-items: center; }
-        .wechat-container { width: 100vw; height: 100vh; max-width: 1100px; max-height: 850px; background: var(--wechat-bg); display: flex; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-        .left-panel { width: 320px; background: #f7f7f7; border-right: 1px solid #e5e5e5; display: flex; flex-direction: column; padding: 20px; }
-        .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--wechat-bg); }
-        #chat-box { flex: 1; overflow-y: auto; padding: 20px; }
-        .msg-wrapper { display: flex; margin-bottom: 15px; }
-        .msg-bubble { background: white; padding: 10px; border-radius: 4px; font-size: 0.95em; }
-        .msg-wrapper.me { justify-content: flex-end; }
-        .msg-wrapper.me .msg-bubble { background: var(--wechat-green); color: white; }
-        .input-toolbar { padding: 15px; background: #f7f7f7; border-top: 1px solid #e5e5e5; display: flex; gap: 10px; }
-        textarea { flex: 1; height: 40px; border: 1px solid #ddd; border-radius: 4px; resize: none; padding: 8px; }
-        button { background: var(--wechat-green); color: white; border: none; padding: 0 20px; border-radius: 4px; }
-        @media (max-width: 768px) { .left-panel { display: none; } }
+        body { font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; margin: 0; }
+        #chat-window { flex: 1; overflow-y: auto; border: 1px solid #ccc; padding: 10px; }
+        .controls { padding: 10px; background: #eee; }
+        .user-card { border: 1px solid #ddd; padding: 5px; margin: 5px; display: inline-block; }
     </style>
 </head>
 <body>
 
-<div class="wechat-container">
-    <div class="left-panel">
-        <h2>微信大厅</h2>
-        <button onclick="joinVoice()">🎙️ 开启麦克风</button>
-        <p id="status">连接中...</p>
+    <div id="login">
+        <input type="text" id="username" placeholder="请输入昵称">
+        <button onclick="initChat()">进入聊天室</button>
     </div>
-    <div class="right-panel">
-        <div id="chat-box"></div>
-        <div class="input-toolbar">
-            <textarea id="msg-input" placeholder="输入内容..."></textarea>
-            <button onclick="sendTextMsg()">发送</button>
+
+    <div id="app" style="display:none;">
+        <div id="user-list"></div>
+        <div id="chat-window"></div>
+        <div class="controls">
+            <button onclick="toggleMic()">静音麦克风</button>
+            <input type="text" id="msgInput">
+            <button onclick="sendText()">发送</button>
         </div>
     </div>
-</div>
 
-<script>
-    // 1. 初始化客户端
-    const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
-    let isConnected = false;
-    let msgQueue = [];
+    <script>
+        let peer, myStream, localName;
 
-    client.on('connect', () => {
-        isConnected = true;
-        document.getElementById('status').innerText = "🟢 已连接";
-        client.subscribe('wechat/lobby');
-        // 清空发送队列
-        while(msgQueue.length > 0) {
-            client.publish('wechat/lobby', msgQueue.shift());
+        async function initChat() {
+            localName = document.getElementById('username').value || "福福的小老弟";
+            document.getElementById('login').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+
+            // 获取位置
+            fetch('https://ipapi.co/json/').then(res => res.json()).then(data => {
+                console.log("所在地区:", data.city, data.country_name);
+            });
+
+            // 初始化PeerJS
+            peer = new Peer(); // 使用公共服务器
+            myStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            peer.on('call', call => {
+                call.answer(myStream);
+            });
         }
-    });
 
-    client.on('message', (topic, message) => {
-        renderMessage(message.toString(), 'peer');
-    });
-
-    // 2. 发送消息（带队列保护）
-    function sendTextMsg() {
-        const text = document.getElementById('msg-input').value;
-        if (!text) return;
-        const msg = JSON.stringify({text: text});
-        if (isConnected) {
-            client.publish('wechat/lobby', msg);
-        } else {
-            msgQueue.push(msg);
-            alert("正在连接网络，消息已放入发送队列...");
+        function toggleMic() {
+            myStream.getAudioTracks()[0].enabled = !myStream.getAudioTracks()[0].enabled;
+            alert("麦克风已切换");
         }
-        renderMessage(text, 'me');
-        document.getElementById('msg-input').value = '';
-    }
 
-    // 3. 麦克风核心（强制简化调用）
-    async function joinVoice() {
-        try {
-            // 彻底去除回声消除等高级参数，确保最底层的硬件调用兼容性
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            alert("麦克风已成功开启！");
-        } catch (e) {
-            alert("开启失败：请确保在浏览器中打开，并允许麦克风权限。错误代码：" + e.name);
-        }
-    }
-
-    function renderMessage(text, type) {
-        const chatBox = document.getElementById('chat-box');
-        const wrapper = document.createElement('div');
-        wrapper.className = `msg-wrapper ${type}`;
-        wrapper.innerHTML = `<div class="msg-bubble">${text}</div>`;
-        chatBox.appendChild(wrapper);
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
-</script>
+        // 注意：由于没有服务器，文字/图片通过 PeerJS 的 dataConnection 广播
+        // 表情包可使用 <img> 标签引入微信表情静态图库即可
+    </script>
 </body>
 </html>
