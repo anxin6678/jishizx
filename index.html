@@ -1,344 +1,161 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2P 无服务器语音聊天室</title>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <style>
-        :root { --primary: #007bff; --bg: #f4f7f6; --text: #333; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); max-width: 800px; margin: 0 auto; padding: 20px; }
-        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        h1, h3 { margin-top: 0; }
-        .flex { display: flex; gap: 10px; flex-wrap: wrap; }
-        input[type="text"] { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
-        button { padding: 10px 20px; border: none; border-radius: 5px; background: var(--primary); color: white; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        button:hover { opacity: 0.8; }
-const socket = io();
-const chatBox = document.getElementById('chat-box');
-const msgInput = document.getElementById('msg-input');
-const statusDiv = document.getElementById('status');
-const audioContainer = document.getElementById('audio-container');
-const joinVoiceBtn = document.getElementById('join-voice-btn');
+// === 新增逻辑：获取或设置固定 ID ===
+    // 1. 尝试从浏览器的本地存储中读取之前保存的 ID
+    let mySavedId = localStorage.getItem('my_fixed_peer_id');
 
-let localStream = null;
-const peers = {}; // 存储所有 P2P 连接 { socketId: RTCPeerConnection }
-
-// WebRTC 配置 (使用 Google 的免费 STUN 服务器)
-const rtcConfig = {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-};
-
-// --- 1. 文字聊天与基础状态 ---
-
-socket.on('user-count', (count) => {
-    const voiceStatus = localStream ? "语音已连接" : "语音未开启";
-    statusDiv.innerText = `当前在线人数: ${count} | ${voiceStatus}`;
-});
-
-function sendMessage() {
-    const text = msgInput.value.trim();
-    if (text) {
-        socket.emit('chat-message', text);
-        msgInput.value = '';
-    }
-}
-
-socket.on('chat-message', (data) => {
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${data.id === socket.id ? 'self' : 'other'}`;
-    const prefix = data.id === socket.id ? '我' : `用户 ${data.id.substring(0,4)}`;
-    msgDiv.innerText = `[${prefix}]: ${data.text}`;
-    chatBox.appendChild(msgDiv);
-    chatBox.scrollTop = chatBox.scrollHeight;
-});
-
-// --- 2. 多人语音逻辑 (WebRTC Mesh) ---
-
-joinVoiceBtn.addEventListener('click', async () => {
-    if (localStream) return; // 已经加入了
-
-    try {
-        // 请求麦克风权限
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        joinVoiceBtn.innerText = "已加入语音";
-        joinVoiceBtn.style.background = "green";
-        statusDiv.innerText = statusDiv.innerText.replace("语音未开启", "语音已连接");
+    // 2. 如果没有找到（说明是第一次打开网页）
+    if (!mySavedId) {
+        // 弹窗让用户自己设定一个 ID
+        mySavedId = prompt("欢迎来到语音聊天室！\n\n请为你自己设定一个【固定的通讯 ID】\n（建议使用英文、拼音或数字，例如：zhangsan88）:");
         
-        // 告诉服务器我已经准备好接收连接了 (利用重新发送一次连接事件模拟)
-        socket.emit('disconnect'); // 强制刷新状态的简易做法
-        socket.connect();
-
-    } catch (err) {
-        alert('无法访问麦克风，请检查浏览器权限！');
-        console.error(err);
-    }
-});
-
-// 创建 P2P 连接的公共函数
-function createPeerConnection(targetUserId) {
-    const pc = new RTCPeerConnection(rtcConfig);
-    
-    // 如果我有麦克风流，加进去
-    if (localStream) {
-        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-    }
-
-    // 发现 ICE 候选者时，发给对方
-    pc.onicecandidate = (event) => {
-        if (event.candidate) {
-            socket.emit('webrtc-ice-candidate', { target: targetUserId, candidate: event.candidate });
+        // 如果用户点了取消或者什么都没填，就给他生成一个随机的作为备用
+        if (!mySavedId || mySavedId.trim() === '') {
+            mySavedId = 'user_' + Math.random().toString(36).substr(2, 6);
+            alert("你没有输入自定义 ID，系统已为你随机分配：" + mySavedId);
         }
-    };
-
-    // 接收到对方的音频流时，播放出来
-    pc.ontrack = (event) => {
-        let audioItem = document.getElementById(`audio-${targetUserId}`);
-        if (!audioItem) {
-            audioItem = document.createElement('audio');
-            audioItem.id = `audio-${targetUserId}`;
-            audioItem.autoplay = true;
-            audioContainer.appendChild(audioItem);
-        }
-        audioItem.srcObject = event.streams[0];
-    };
-
-    peers[targetUserId] = pc;
-    return pc;
-}
-
-// 有新用户加入，作为发起方(Caller)建立连接
-socket.on('user-joined', async (userId) => {
-    if (!localStream) return; // 只有自己开启了语音，才去连别人
-    
-    const pc = createPeerConnection(userId);
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    socket.emit('webrtc-offer', { target: userId, offer: offer });
-});
-
-// 收到 Offer，作为接收方(Callee)回应 Answer
-socket.on('webrtc-offer', async (data) => {
-    if (!localStream) return; 
-
-    const pc = createPeerConnection(data.caller);
-    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    socket.emit('webrtc-answer', { target: data.caller, answer: answer });
-});
-
-// 收到 Answer
-socket.on('webrtc-answer', async (data) => {
-    const pc = peers[data.caller];
-    if (pc) await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-});
-
-// 收到 ICE 候选者
-socket.on('webrtc-ice-candidate', async (data) => {
-    const pc = peers[data.caller];
-    if (pc) await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-});
-
-// 用户离开，清理连接和音频
-socket.on('user-left', (userId) => {
-    if (peers[userId]) {
-        peers[userId].close();
-        delete peers[userId];
+        
+        // 3. 将这个 ID 永久保存在浏览器中
+        localStorage.setItem('my_fixed_peer_id', mySavedId.trim());
     }
-    const audioItem = document.getElementById(`audio-${userId}`);
-    if (audioItem) audioItem.remove();
-});        button.danger { background: #dc3545; }
-        button.success { background: #28a745; }
-        #chat-box { height: 300px; border: 1px solid #eee; border-radius: 5px; overflow-y: auto; padding: 10px; margin-bottom: 10px; background: #fafafa; }
-        .msg { margin-bottom: 8px; line-height: 1.4; }
-        .msg.me { color: var(--primary); text-align: right; }
-        .msg.peer { color: #d63384; }
-        .msg.system { color: #6c757d; font-size: 0.9em; text-align: center; font-style: italic; }
-        .peer-list { margin-top: 10px; font-size: 0.9em; color: #555; }
-        #audio-container { display: none; }
-    </style>
-</head>
-<body>
 
-    <div class="card">
-        <h1>🎙️ P2P 网页语音聊天</h1>
-        <p>你的唯一通讯 ID: <strong id="my-id" style="color: var(--primary); user-select: all; font-size: 1.2em;">生成中...</strong></p>
-        <p style="font-size: 0.85em; color: #666;">（将此 ID 发给你的朋友，或者输入朋友的 ID 进行连接）</p>
-        
-        <div class="flex">
-            <button id="btn-mic" class="danger">1. 开启麦克风 (必须先开启)</button>
-        </div>
-    </div>
+    // ===================================
+    // 使用固定的 ID 初始化 PeerJS
+    const peer = new Peer(mySavedId);
+    
+    let myId = '';
+    let localStream = null;
+    
+    // 存储连接对象，支持多人
+    const dataConns = {}; 
+    const mediaCalls = {}; 
 
-    <div class="card">
-        <h3>🔗 连接到好友</h3>
-        <div class="flex">
-            <input type="text" id="target-id" placeholder="输入朋友的 ID...">
-            <button id="btn-connect" onclick="connectToPeer()">2. 连接并呼叫</button>
-        </div>
-        <div class="peer-list" id="active-peers">当前连接: 无</div>
-    </div>
+    // DOM 元素
+    const chatBox = document.getElementById('chat-box');
+    const activePeersDiv = document.getElementById('active-peers');
+    const audioContainer = document.getElementById('audio-container');
 
-    <div class="card">
-        <h3>💬 聊天室</h3>
-        <div id="chat-box"></div>
-        <div class="flex">
-            <input type="text" id="msg-input" placeholder="输入文字消息..." onkeypress="if(event.key === 'Enter') sendMsg()">
-            <button onclick="sendMsg()">发送</button>
-        </div>
-    </div>
+    // 1. 成功连接服务器，获取自身 ID
+    peer.on('open', (id) => {
+        myId = id;
+        document.getElementById('my-id').innerText = id;
+        logSystem('已连接网络！你的固定 ID 是: ' + id);
+    });
 
-    <div id="audio-container"></div>
-
-    <script>
-        // 初始化 PeerJS (连接到公共免费服务器)
-        const peer = new Peer();
-        let myId = '';
-        let localStream = null;
-        
-        // 存储连接对象，支持多人
-        const dataConns = {}; 
-        const mediaCalls = {}; 
-
-        // DOM 元素
-        const chatBox = document.getElementById('chat-box');
-        const activePeersDiv = document.getElementById('active-peers');
-        const audioContainer = document.getElementById('audio-container');
-
-        // 1. 成功连接服务器，获取自身 ID
-        peer.on('open', (id) => {
-            myId = id;
-            document.getElementById('my-id').innerText = id;
-            logSystem('已连接到信令网络，可以开始通讯。');
-        });
-
-        peer.on('error', (err) => {
+    // 监听如果 ID 被别人占用了的错误
+    peer.on('error', (err) => {
+        if (err.type === 'unavailable-id') {
+            alert('糟糕，这个 ID [' + mySavedId + '] 当前正被别人使用！\n页面将刷新，请重新设置一个新的 ID。');
+            // 清除旧的冲突 ID，刷新页面让用户重新输入
+            localStorage.removeItem('my_fixed_peer_id');
+            location.reload();
+        } else {
             logSystem('网络错误: ' + err.type);
             console.error(err);
+        }
+    });
+
+    // 2. 开启麦克风
+    document.getElementById('btn-mic').addEventListener('click', async () => {
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            const btn = document.getElementById('btn-mic');
+            btn.className = 'success';
+            btn.innerText = '麦克风已开启 ✅';
+            logSystem('麦克风已就绪。');
+        } catch (err) {
+            alert('无法访问麦克风，请检查浏览器权限限制。');
+        }
+    });
+
+    // 3. 接收他人的文字连接请求
+    peer.on('connection', (conn) => {
+        setupDataConnection(conn);
+    });
+
+    // 4. 接收他人的语音呼叫
+    peer.on('call', (call) => {
+        if (!localStream) {
+            logSystem('收到语音呼叫，但你未开启麦克风，无法接听。');
+            return;
+        }
+        call.answer(localStream);
+        setupMediaCall(call);
+    });
+
+    // 5. 主动连接其他用户 (文字+语音)
+    function connectToPeer() {
+        const targetId = document.getElementById('target-id').value.trim();
+        if (!targetId || targetId === myId) return alert('请输入有效的他人 ID');
+        if (!localStream) return alert('请先开启麦克风再进行连接！');
+
+        const conn = peer.connect(targetId);
+        setupDataConnection(conn);
+
+        const call = peer.call(targetId, localStream);
+        setupMediaCall(call);
+        
+        document.getElementById('target-id').value = '';
+    }
+
+    // ================= 工具函数 =================
+    function setupDataConnection(conn) {
+        conn.on('open', () => {
+            dataConns[conn.peer] = conn;
+            updatePeerList();
+            logSystem(`已与用户 [${conn.peer}] 建立连接`);
         });
 
-        // 2. 开启麦克风
-        document.getElementById('btn-mic').addEventListener('click', async () => {
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                const btn = document.getElementById('btn-mic');
-                btn.className = 'success';
-                btn.innerText = '麦克风已开启 ✅';
-                logSystem('麦克风已就绪。');
-            } catch (err) {
-                alert('无法访问麦克风，请检查浏览器权限限制。');
-            }
+        conn.on('data', (data) => {
+            logMessage(`[${conn.peer}]: ${data}`, 'peer');
         });
 
-        // 3. 接收他人的文字连接请求
-        peer.on('connection', (conn) => {
-            setupDataConnection(conn);
+        conn.on('close', () => {
+            delete dataConns[conn.peer];
+            updatePeerList();
+            logSystem(`用户 [${conn.peer}] 断开连接`);
+        });
+    }
+
+    function setupMediaCall(call) {
+        call.on('stream', (remoteStream) => {
+            if (document.getElementById('audio-' + call.peer)) return;
+            const audioElement = document.createElement('audio');
+            audioElement.id = 'audio-' + call.peer;
+            audioElement.srcObject = remoteStream;
+            audioElement.autoplay = true;
+            audioContainer.appendChild(audioElement);
         });
 
-        // 4. 接收他人的语音呼叫
-        peer.on('call', (call) => {
-            if (!localStream) {
-                logSystem('收到语音呼叫，但你未开启麦克风，无法接听。');
-                return;
-            }
-            // 接听呼叫并发送自己的声音
-            call.answer(localStream);
-            setupMediaCall(call);
+        call.on('close', () => {
+            const audioEl = document.getElementById('audio-' + call.peer);
+            if (audioEl) audioEl.remove();
         });
+        mediaCalls[call.peer] = call;
+    }
 
-        // 5. 主动连接其他用户 (文字+语音)
-        function connectToPeer() {
-            const targetId = document.getElementById('target-id').value.trim();
-            if (!targetId || targetId === myId) return alert('请输入有效的他人 ID');
-            if (!localStream) return alert('请先开启麦克风再进行连接！');
-
-            // 建立数据连接 (文字)
-            const conn = peer.connect(targetId);
-            setupDataConnection(conn);
-
-            // 建立媒体呼叫 (语音)
-            const call = peer.call(targetId, localStream);
-            setupMediaCall(call);
-            
-            document.getElementById('target-id').value = '';
+    function sendMsg() {
+        const input = document.getElementById('msg-input');
+        const text = input.value.trim();
+        if (!text) return;
+        logMessage(`[我]: ${text}`, 'me');
+        for (let peerId in dataConns) {
+            dataConns[peerId].send(text);
         }
+        input.value = '';
+    }
 
-        // ================= 工具函数 =================
+    function updatePeerList() {
+        const ids = Object.keys(dataConns);
+        activePeersDiv.innerText = ids.length ? `当前连接: ${ids.join(', ')}` : '当前连接: 无';
+    }
 
-        // 设置数据连接 (文字聊天)
-        function setupDataConnection(conn) {
-            conn.on('open', () => {
-                dataConns[conn.peer] = conn;
-                updatePeerList();
-                logSystem(`已与用户 ${conn.peer.substring(0,5)}... 建立连接`);
-            });
+    function logMessage(msg, type) {
+        const div = document.createElement('div');
+        div.className = `msg ${type}`;
+        div.innerText = msg;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
 
-            conn.on('data', (data) => {
-                logMessage(`[用户 ${conn.peer.substring(0,5)}]: ${data}`, 'peer');
-            });
-
-            conn.on('close', () => {
-                delete dataConns[conn.peer];
-                updatePeerList();
-                logSystem(`用户 ${conn.peer.substring(0,5)}... 断开连接`);
-            });
-        }
-
-        // 设置媒体连接 (播放语音)
-        function setupMediaCall(call) {
-            call.on('stream', (remoteStream) => {
-                // 如果已经有这个人的声音了，就跳过（防止重复添加）
-                if (document.getElementById('audio-' + call.peer)) return;
-
-                const audioElement = document.createElement('audio');
-                audioElement.id = 'audio-' + call.peer;
-                audioElement.srcObject = remoteStream;
-                audioElement.autoplay = true;
-                audioContainer.appendChild(audioElement);
-            });
-
-            call.on('close', () => {
-                const audioEl = document.getElementById('audio-' + call.peer);
-                if (audioEl) audioEl.remove();
-            });
-            mediaCalls[call.peer] = call;
-        }
-
-        // 发送文字消息 (广播给所有已连接的人)
-        function sendMsg() {
-            const input = document.getElementById('msg-input');
-            const text = input.value.trim();
-            if (!text) return;
-
-            // 在本地显示
-            logMessage(`[我]: ${text}`, 'me');
-            
-            // 循环发送给所有人
-            for (let peerId in dataConns) {
-                dataConns[peerId].send(text);
-            }
-            input.value = '';
-        }
-
-        // 更新 UI 列表
-        function updatePeerList() {
-            const ids = Object.keys(dataConns);
-            activePeersDiv.innerText = ids.length ? `当前连接: ${ids.length} 人` : '当前连接: 无';
-        }
-
-        // 打印信息到聊天框
-        function logMessage(msg, type) {
-            const div = document.createElement('div');
-            div.className = `msg ${type}`;
-            div.innerText = msg;
-            chatBox.appendChild(div);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-        function logSystem(msg) {
-            logMessage(`— ${msg} —`, 'system');
-        }
-    </script>
-</body>
-</html>
+    function logSystem(msg) {
+        logMessage(`— ${msg} —`, 'system');
+    }
