@@ -3,47 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2P 无服务器语音聊天室</title>
+    <title>P2P 跟随式语音聊天室</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { --primary: #007bff; --bg: #f4f7f6; --text: #333; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); max-width: 800px; margin: 0 auto; padding: 20px; }
         .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        h1, h3 { margin-top: 0; }
-        .flex { display: flex; gap: 10px; flex-wrap: wrap; }
+        h1, h3 { margin-top: 0; margin-bottom: 15px; }
+        
+        .flex { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
         input[type="text"] { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
         button { padding: 10px 20px; border: none; border-radius: 5px; background: var(--primary); color: white; cursor: pointer; font-weight: bold; transition: 0.3s; }
         button:hover { opacity: 0.8; }
         button.danger { background: #dc3545; }
         button.success { background: #28a745; }
-        #chat-box { height: 300px; border: 1px solid #eee; border-radius: 5px; overflow-y: auto; padding: 10px; margin-bottom: 10px; background: #fafafa; }
+        button.warning { background: #ffc107; color: #000; }
+        
+        /* 聊天框样式 */
+        #chat-box { height: 250px; border: 1px solid #eee; border-radius: 5px; overflow-y: auto; padding: 10px; margin-bottom: 10px; background: #fafafa; }
         .msg { margin-bottom: 8px; line-height: 1.4; }
         .msg.me { color: var(--primary); text-align: right; }
         .msg.peer { color: #d63384; }
         .msg.system { color: #6c757d; font-size: 0.9em; text-align: center; font-style: italic; }
-        .peer-list { margin-top: 10px; font-size: 0.9em; color: #555; }
+        
+        /* 在线人物展示区样式 */
+        .users-grid { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; min-height: 40px; }
+        .user-pill { background: #e9ecef; padding: 5px 12px 5px 5px; border-radius: 30px; display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 0.9em; animation: fadeIn 0.3s ease-in-out; }
+        .user-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 14px; text-transform: uppercase; }
+        .user-pill.me .user-avatar { background: #28a745; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        
         #audio-container { display: none; }
+        #join-alert { display: none; background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #ffeeba; }
     </style>
 </head>
 <body>
 
+    <div id="join-alert">
+        <strong>👋 收到邀请！</strong> 正在准备跟随进入 <span id="host-name" style="font-weight: bold; color: var(--primary);"></span> 的语音聊天室...
+    </div>
+
     <div class="card">
-        <h1>🎙️ P2P 网页语音聊天</h1>
-        <p>你的专属固定 ID: <strong id="my-id" style="color: var(--primary); user-select: all; font-size: 1.2em;">读取中...</strong></p>
-        <p style="font-size: 0.85em; color: #666;">（将此 ID 发给你的朋友，或者输入朋友的 ID 进行连接）</p>
+        <h1>🎙️ P2P 派对语音室</h1>
+        <p>你的固定 ID: <strong id="my-id" style="color: var(--primary); user-select: all; font-size: 1.2em;">读取中...</strong></p>
         
-        <div class="flex">
-            <button id="btn-mic" class="danger">1. 开启麦克风 (必须先开启)</button>
+        <div class="flex" style="margin-top: 15px;">
+            <button id="btn-mic" class="danger">1. 开启麦克风进入大厅</button>
+            <button class="warning" onclick="copyInviteLink()">🔗 复制跟随链接发给朋友</button>
         </div>
     </div>
 
     <div class="card">
-        <h3>🔗 连接到好友</h3>
+        <h3>👥 当前房间内的人员</h3>
+        <p style="font-size: 0.85em; color: #666; margin-top: -10px;">通过链接加入或互相连接后，这里会自动显示所有人。</p>
+        <div id="users-grid" class="users-grid">
+            </div>
+    </div>
+
+    <div class="card">
+        <h3>🔗 手动连接他人</h3>
         <div class="flex">
-            <input type="text" id="target-id" placeholder="输入朋友的 ID...">
-            <button id="btn-connect" onclick="connectToPeer()">2. 连接并呼叫</button>
+            <input type="text" id="target-id" placeholder="如果不用链接，也可以输入朋友的 ID...">
+            <button id="btn-connect" onclick="manualConnect()">连接并呼叫</button>
         </div>
-        <div class="peer-list" id="active-peers">当前连接: 无</div>
     </div>
 
     <div class="card">
@@ -58,60 +81,58 @@
     <div id="audio-container"></div>
 
     <script>
-        // === 1. 尝试从浏览器的本地存储中读取之前保存的 ID ===
-        let mySavedId = localStorage.getItem('my_fixed_peer_id');
+        // === 1. 解析 URL，看看是不是别人发来的“跟随链接” ===
+        const urlParams = new URLSearchParams(window.location.search);
+        const joinTargetId = urlParams.get('join');
+        
+        if (joinTargetId) {
+            document.getElementById('join-alert').style.display = 'block';
+            document.getElementById('host-name').innerText = joinTargetId;
+            document.getElementById('btn-mic').innerText = `1. 开启麦克风并跟随 ${joinTargetId} 进入房间`;
+        }
 
-        // === 2. 如果没有找到（说明是第一次打开网页）===
+        // === 2. 初始化 ID 与 PeerJS ===
+        let mySavedId = localStorage.getItem('my_fixed_peer_id');
         if (!mySavedId) {
-            // 弹窗让用户自己设定一个 ID
-            mySavedId = prompt("欢迎来到语音聊天室！\n\n请为你自己设定一个【固定的通讯 ID】\n（建议使用英文、拼音或数字，例如：zhangsan88）:");
-            
-            // 如果用户点了取消或者什么都没填，就给他生成一个随机的作为备用
+            mySavedId = prompt("欢迎！请为你设定一个【固定的通讯 ID】\n（建议使用英文或数字，如：mike88）:");
             if (!mySavedId || mySavedId.trim() === '') {
                 mySavedId = 'user_' + Math.random().toString(36).substr(2, 6);
-                alert("你没有输入自定义 ID，系统已为你随机分配：" + mySavedId);
             }
-            
-            // 将这个 ID 永久保存在浏览器中
             localStorage.setItem('my_fixed_peer_id', mySavedId.trim());
         }
 
-        // === 3. 使用固定的 ID 初始化 PeerJS ===
         const peer = new Peer(mySavedId);
-        
         let myId = '';
         let localStream = null;
         
-        // 存储连接对象，支持多人
+        // 核心数据结构：存储所有的连接
         const dataConns = {}; 
         const mediaCalls = {}; 
 
         // DOM 元素
         const chatBox = document.getElementById('chat-box');
-        const activePeersDiv = document.getElementById('active-peers');
+        const usersGrid = document.getElementById('users-grid');
         const audioContainer = document.getElementById('audio-container');
 
-        // 成功连接服务器，获取自身 ID
+        // === 3. PeerJS 事件监听 ===
         peer.on('open', (id) => {
             myId = id;
             document.getElementById('my-id').innerText = id;
-            logSystem('已连接网络！你的固定 ID 是: ' + id);
+            logSystem('网络已就绪！你的 ID 是: ' + id);
+            renderUsersUI(); // 渲染自己的头像
         });
 
-        // 监听如果 ID 被别人占用了的错误
         peer.on('error', (err) => {
             if (err.type === 'unavailable-id') {
-                alert('糟糕，这个 ID [' + mySavedId + '] 当前正被别人使用！\n页面将刷新，请重新设置一个新的 ID。');
-                // 清除旧的冲突 ID，刷新页面让用户重新输入
+                alert(`ID [${mySavedId}] 正被别人使用！页面将刷新重新设置。`);
                 localStorage.removeItem('my_fixed_peer_id');
-                location.reload();
+                window.location.href = window.location.pathname; // 清除 URL 参数并刷新
             } else {
-                logSystem('网络错误: ' + err.type);
                 console.error(err);
             }
         });
 
-        // 开启麦克风
+        // 点击开启麦克风
         document.getElementById('btn-mic').addEventListener('click', async () => {
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -119,57 +140,82 @@
                 btn.className = 'success';
                 btn.innerText = '麦克风已开启 ✅';
                 logSystem('麦克风已就绪。');
+
+                // 如果是通过“跟随链接”进来的，开启麦克风后自动连接！
+                if (joinTargetId && joinTargetId !== myId) {
+                    logSystem(`正在自动跟随并连接到房间: ${joinTargetId}...`);
+                    connectToPeer(joinTargetId);
+                }
             } catch (err) {
-                alert('无法访问麦克风，请检查浏览器权限限制。');
+                alert('无法访问麦克风！请确保浏览器允许麦克风权限。');
             }
         });
 
-        // 接收他人的文字连接请求
+        // 收到他人的数据连接请求
         peer.on('connection', (conn) => {
             setupDataConnection(conn);
         });
 
-        // 接收他人的语音呼叫
+        // 收到他人的语音呼叫
         peer.on('call', (call) => {
-            if (!localStream) {
-                logSystem('收到语音呼叫，但你未开启麦克风，无法接听。');
-                return;
-            }
+            if (!localStream) return;
             call.answer(localStream);
             setupMediaCall(call);
         });
 
-        // 主动连接其他用户 (文字+语音)
-        function connectToPeer() {
-            const targetId = document.getElementById('target-id').value.trim();
-            if (!targetId || targetId === myId) return alert('请输入有效的他人 ID');
-            if (!localStream) return alert('请先开启麦克风再进行连接！');
-
-            const conn = peer.connect(targetId);
-            setupDataConnection(conn);
-
-            const call = peer.call(targetId, localStream);
-            setupMediaCall(call);
-            
+        // === 4. 核心功能：连接他人与网状路由分发 ===
+        function manualConnect() {
+            const target = document.getElementById('target-id').value.trim();
+            if (!target) return;
+            connectToPeer(target);
             document.getElementById('target-id').value = '';
         }
 
-        // ================= 工具函数 =================
+        function connectToPeer(targetId) {
+            if (targetId === myId) return;
+            if (dataConns[targetId]) return; // 已经连过了
+            if (!localStream) return alert('请先点击上方按钮开启麦克风！');
+
+            // 建立文字和指令连接
+            const conn = peer.connect(targetId);
+            setupDataConnection(conn);
+
+            // 建立语音呼叫
+            const call = peer.call(targetId, localStream);
+            setupMediaCall(call);
+        }
+
         function setupDataConnection(conn) {
             conn.on('open', () => {
                 dataConns[conn.peer] = conn;
-                updatePeerList();
-                logSystem(`已与用户 [${conn.peer}] 建立连接`);
+                logSystem(`已与 [${conn.peer}] 建立连接`);
+                renderUsersUI(); // 更新在线人员列表
+                broadcastRoomSync(); // 告诉房间里的所有人：有新人来了！
             });
 
-            conn.on('data', (data) => {
-                logMessage(`[${conn.peer}]: ${data}`, 'peer');
+            conn.on('data', (dataStr) => {
+                try {
+                    const data = JSON.parse(dataStr);
+                    // 接收到普通聊天信息
+                    if (data.type === 'chat') {
+                        logMessage(`[${conn.peer}]: ${data.text}`, 'peer');
+                    } 
+                    // 接收到“网状路由同步”指令（发现房间里的其他人）
+                    else if (data.type === 'sync_peers') {
+                        data.peers.forEach(peerId => {
+                            // 如果系统告诉我房间里有别人，且我还没连上他，我就自动去连他
+                            if (peerId !== myId && !dataConns[peerId]) {
+                                connectToPeer(peerId);
+                            }
+                        });
+                    }
+                } catch(e) { console.error("解析消息失败", e); }
             });
 
             conn.on('close', () => {
                 delete dataConns[conn.peer];
-                updatePeerList();
-                logSystem(`用户 [${conn.peer}] 断开连接`);
+                renderUsersUI();
+                logSystem(`[${conn.peer}] 离开了房间`);
             });
         }
 
@@ -190,20 +236,75 @@
             mediaCalls[call.peer] = call;
         }
 
+        // === 5. 广播机制（实现跟随同步） ===
+        // 这个函数的作用：把当前连接的所有人的名单，打包发给所有人。
+        function broadcastRoomSync() {
+            const currentPeers = Object.keys(dataConns);
+            const syncData = JSON.stringify({ type: 'sync_peers', peers: currentPeers });
+            
+            for (let peerId in dataConns) {
+                dataConns[peerId].send(syncData);
+            }
+        }
+
         function sendMsg() {
             const input = document.getElementById('msg-input');
             const text = input.value.trim();
             if (!text) return;
+            
             logMessage(`[我]: ${text}`, 'me');
+            
+            // 将普通消息打包成 JSON 发给房间里的所有人
+            const msgData = JSON.stringify({ type: 'chat', text: text });
             for (let peerId in dataConns) {
-                dataConns[peerId].send(text);
+                dataConns[peerId].send(msgData);
             }
             input.value = '';
         }
 
-        function updatePeerList() {
-            const ids = Object.keys(dataConns);
-            activePeersDiv.innerText = ids.length ? `当前连接: ${ids.join(', ')}` : '当前连接: 无';
+        // === 6. UI 更新与工具函数 ===
+        
+        // 渲染在线头像列表
+        function renderUsersUI() {
+            usersGrid.innerHTML = ''; // 清空
+            
+            // 1. 渲染自己
+            if (myId) {
+                usersGrid.appendChild(createUserPill(myId, true));
+            }
+            // 2. 渲染已连接的朋友
+            Object.keys(dataConns).forEach(peerId => {
+                usersGrid.appendChild(createUserPill(peerId, false));
+            });
+        }
+
+        // 生成单个“人物胶囊”DOM
+        function createUserPill(id, isMe) {
+            const div = document.createElement('div');
+            div.className = `user-pill ${isMe ? 'me' : ''}`;
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'user-avatar';
+            avatar.innerText = id.substring(0, 1).toUpperCase(); // 取首字母做头像
+            
+            const name = document.createElement('span');
+            name.innerText = isMe ? `${id} (我)` : id;
+
+            div.appendChild(avatar);
+            div.appendChild(name);
+            return div;
+        }
+
+        // 复制专属跟随链接
+        function copyInviteLink() {
+            if (!myId) return alert('等待网络连接成功后再复制...');
+            // 获取当前网址并加上 ?join=我的ID 参数
+            const link = window.location.origin + window.location.pathname + '?join=' + myId;
+            navigator.clipboard.writeText(link).then(() => {
+                alert('✅ 复制成功！快把链接发给朋友，他们打开就会自动跟随进入你的房间啦！\n\n链接: ' + link);
+            }).catch(err => {
+                alert('复制失败，请手动复制: ' + link);
+            });
         }
 
         function logMessage(msg, type) {
