@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>微信大厅 · 全功能修复版</title>
+    <title>微信大厅 · 自定义昵称尊享版</title>
+    <!-- 使用国内及全球速度极快的 jsDelivr 高速 MQTT 镜像专线 -->
     <script src="https://cdn.jsdelivr.net/npm/mqtt@5.5.1/dist/mqtt.min.js"></script>
     <style>
         /* 微信官方经典配色 */
@@ -37,9 +38,10 @@
         button.we-btn.primary:hover { background: #06ad56; }
         button.we-btn.warn { background: #f5f5f5; color: #fa5151; border: 1px solid #e5e5e5; }
         button.we-btn.warn:hover { background: #e5e5e5; }
-        button.we-btn.fix { background: #fa5151; color: white; margin-top: 8px; display: none; }
+        
+        button.we-btn.fix { background: #28a745; color: white; margin-top: 8px; display: none; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
 
-        /* 可视化错误诊断打印区 */
         .error-log-box { display: none; margin-top: 10px; padding: 8px 10px; background: #fff5f5; border: 1px solid #ffcccc; border-radius: 4px; color: #fa5151; font-size: 0.82em; line-height: 1.4; word-break: break-all; }
 
         .member-section { flex: 1; padding: 15px 20px; display: flex; flex-direction: column; min-height: 0; }
@@ -51,7 +53,7 @@
         .user-pill.me .user-avatar { background: var(--wechat-green); }
         .user-name { font-size: 0.95em; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-        /* 右侧大聊天视窗区 */
+        /* 右侧独立打字聊天视窗区 */
         .right-panel { flex: 1; display: flex; flex-direction: column; background: var(--wechat-bg); }
         .right-header { height: 62px; background: var(--wechat-panel-bg); border-bottom: 1px solid #e5e5e5; display: flex; align-items: center; padding: 0 25px; font-weight: bold; font-size: 1.1em; }
 
@@ -85,7 +87,8 @@
         .emoji-picker { position: absolute; bottom: 150px; left: 25px; background: white; border: 1px solid #e5e5e5; padding: 10px; border-radius: 4px; display: none; grid-template-columns: repeat(7, 1fr); gap: 10px; box-shadow: 0 2px 15px rgba(0,0,0,0.08); z-index: 100; }
         .emoji-picker span { cursor: pointer; font-size: 1.4em; text-align: center; }
 
-        #audio-container { display: none; }
+        /* 视外安全隐藏音频宿主 */
+        .safe-audio-host { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; left: -9999px; top: -9999px; }
 
         @media (max-width: 768px) {
             .wechat-container { flex-direction: column; height: 100vh; border-radius: 0; }
@@ -101,17 +104,18 @@
 
     <div class="wechat-container">
         
+        <!-- 左侧控制面板 -->
         <div class="left-panel">
             <div class="left-header">
                 <h2>微信大厅 · 极速自愈版</h2>
-                <p>我的ID: <span id="my-id">正在接入安全专线...</span></p>
+                <p>我的昵称: <span id="my-id" style="font-weight: bold; color: var(--wechat-green);">设置中...</span></p>
             </div>
             
             <div class="voice-card">
                 <div id="voice-status-box" class="status-box">当前状态：未加入语音</div>
                 <button id="btn-join" class="we-btn primary" onclick="joinGlobalVoice()">🚀 开启麦克风说话</button>
                 <button id="btn-mute" class="we-btn warn" style="display: none;" onclick="toggleMute()">🎙️ 静音麦克风</button>
-                <button id="apple-fix-btn" class="we-btn primary fix" onclick="unlockAppleAudio()">🔊 苹果用户听不见点此激活声音</button>
+                <button id="apple-fix-btn" class="we-btn primary fix" onclick="unlockGlobalAudio()">🔊 听不见声音？点此修复激活</button>
                 
                 <div id="error-log-box" class="error-log-box"></div>
             </div>
@@ -122,6 +126,7 @@
             </div>
         </div>
         
+        <!-- 右侧独立打字公屏 -->
         <div class="right-panel">
             <div class="right-header" id="room-title">公共大厅大群聊 (1)</div>
             <div id="chat-box"></div>
@@ -142,10 +147,11 @@
 
     </div>
 
-    <div id="audio-container"></div>
+    <!-- 音频容器 -->
+    <div id="audio-container" class="safe-audio-host"></div>
 
     <script>
-        // 国内顶级大厂云端高速 WebRTC 穿透节点
+        // 国内大厂原生 WebRTC 极速打通穿透节点
         const rtcConfig = {
             iceServers: [
                 { urls: 'stun:stun.aliyun.com:3478' },
@@ -155,7 +161,19 @@
         };
 
         const BASE_TOPIC = 'wechat-lobby-china-2026';
-        const myId = 'User_' + Math.random().toString(36).substr(2, 4).toUpperCase();
+
+        // === 新增核心逻辑：自定义昵称与“福福的手下”兜底分流机制 ===
+        let savedName = localStorage.getItem('wechat_room_username') || '';
+        let customName = prompt("欢迎来到大厅！\n\n请输入您的个性聊天昵称（如果直接点确定或留空，将自动分配为 福福的手下X 号）：", savedName);
+        
+        let myId = '';
+        if (customName && customName.trim() !== "") {
+            myId = customName.trim();
+            localStorage.setItem('wechat_room_username', myId); // 记住用户手打的名字
+        } else {
+            // 如果留空，生成福福的手下+1-99的数字，防止网络传输时多名冲突挂断
+            myId = '福福的手下' + Math.floor(Math.random() * 99 + 1);
+        }
         
         let localStream = null;
         let isMuted = false;
@@ -170,7 +188,7 @@
         const voiceStatusBox = document.getElementById('voice-status-box');
         const errorLogBox = document.getElementById('error-log-box');
 
-        // 表情初始化
+        // 表情包初始化
         const emojis = ['😀','😂','🥰','😎','😭','😡','🥳','🤔','👍','👎','❤️','🔥','🎉','👀','🐶','🐱','✨','💯'];
         const emojiPicker = document.getElementById('emoji-picker');
         emojis.forEach(e => {
@@ -181,12 +199,12 @@
         function toggleEmojiPicker() { emojiPicker.style.display = (emojiPicker.style.display === 'grid') ? 'none' : 'grid'; }
         document.addEventListener('click', (e) => { if (!e.target.closest('.tool-bar-icons') && emojiPicker) emojiPicker.style.display = 'none'; });
 
-        // 连接 MQTT 国内专线
+        // 连接国内高速 WSS 信道
         const mqttClient = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
 
         mqttClient.on('connect', () => {
             document.getElementById('my-id').innerText = myId;
-            logSystem(`已接入公屏网络！您现在可以直接打字发图交互。`);
+            logSystem(`成功进入大厅！您可以直接在右侧打字交流。`);
             
             mqttClient.subscribe(`${BASE_TOPIC}/chat`);
             mqttClient.subscribe(`${BASE_TOPIC}/presence`);
@@ -255,7 +273,7 @@
             }
         }, 5000);
 
-        // === 3. 稳健的原生 WebRTC 音频流对塞机制 ===
+        // === WebRTC 原生多轨兼容挂载 ===
         function createRtcConnection(targetId) {
             if (rtcPeers[targetId]) return rtcPeers[targetId];
 
@@ -279,7 +297,11 @@
                     audioEl.setAttribute('playsinline', ''); 
                     audioContainer.appendChild(audioEl);
                 }
-                audioEl.srcObject = e.streams[0];
+                
+                audioEl.srcObject = e.streams[0] || new MediaStream([e.track]);
+                audioEl.muted = false;
+                audioEl.volume = 1.0;
+
                 audioEl.play().catch(() => {
                     document.getElementById('apple-fix-btn').style.display = 'block';
                 });
@@ -307,31 +329,25 @@
             sendDirectMsg(fromPeer, { type: 'answer', from: myId, answer: answer });
         }
 
-        // === 4. 开启麦克风大厅模块（深度修复与错误跟踪重构） ===
+        // === 麦克风控制区 ===
         async function joinGlobalVoice() {
             if (localStream) return;
             errorLogBox.style.display = 'none';
 
-            // 【苹果 WebKit 核心破冰策略】：前置同步解锁音频上下文
             try {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (AudioContext) {
-                    const ctx = new AudioContext();
-                    ctx.resume();
-                }
+                if (AudioContext) { new AudioContext().resume(); }
             } catch(e) {}
 
-            // 【环境审查拦截】
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                printError("浏览器拦截：非 HTTPS 安全网址，或当前浏览器已被系统禁言。请确保网址以 https:// 开头并使用手机自带浏览器打开！");
+                printError("浏览器拦截：非 HTTPS 安全网址下禁止开麦，请确保网址以 https:// 开头并用自带浏览器打开！");
                 return;
             }
 
             try {
-                // 【兼容性降级策略】：精简复杂约束，使用最温和的原生参数请求硬件
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 
-                voiceStatusBox.innerText = "🟢 已接入群语音通话";
+                voiceStatusBox.innerText = "🟢 已进入群语音通话";
                 voiceStatusBox.className = "status-box active";
                 document.getElementById('btn-join').style.display = 'none';
                 document.getElementById('btn-mute').style.display = 'inline-block';
@@ -341,18 +357,15 @@
                 Object.keys(onlineUsers).forEach(pId => {
                     if (onlineUsers[pId].wantsVoice && myId > pId) initiateVoiceCall(pId);
                 });
-                logSystem('你的麦克风成功启用，大家现在能听到你说话了！');
+                logSystem('你的麦克风成功启用！');
             } catch (err) {
-                console.error("麦克风激活触发真实硬件错误:", err);
-                let msg = `激活失败 (${err.name}): `;
+                let msg = `激活失败: `;
                 if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                    msg += "麦克风权限被拒绝！请点击浏览器地址栏左侧的 🔒 图标，手动允许麦克风权限后刷新网页。";
-                } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                    msg += "系统未检测到任何麦克风硬件设备，请确认耳机或麦克风已插好。";
+                    msg += "权限被拒绝，请点击浏览器左侧 🔒 允许使用麦克风。";
                 } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                    msg += "麦克风正被其他后台程序（如微信电话、系统录音机）独占，请彻底退出后台其他语音应用后再试。";
+                    msg += "麦克风被其他后台程序（如微信电话）占用，请彻底清除后台应用后再试。";
                 } else {
-                    msg += err.message || "发生未知硬件死锁。";
+                    msg += "未检测到设备，或发生未知硬件死锁。";
                 }
                 printError(msg);
             }
@@ -363,11 +376,14 @@
             errorLogBox.style.display = 'block';
         }
 
-        function unlockAppleAudio() {
+        function unlockGlobalAudio() {
             const audios = audioContainer.getElementsByTagName('audio');
-            for (let audio of audios) { audio.play().catch(e => {}); }
+            for (let audio of audios) { 
+                audio.muted = false;
+                audio.play().catch(e => {}); 
+            }
             document.getElementById('apple-fix-btn').style.display = 'none';
-            logSystem('🔊 苹果音频通道已通过手势强制唤醒打通！');
+            logSystem('🔊 全局声音激活成功！');
         }
 
         function toggleMute() {
@@ -394,7 +410,7 @@
             publishPresence({ type: 'leave', id: myId });
         });
 
-        // === 6. 微信对话交互组件 ===
+        // === 微信对话公屏流（打字彻底解耦） ===
         function handleKeyPress(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTextMsg(); } }
         
         function sendTextMsg() {
@@ -415,11 +431,13 @@
             r.readAsDataURL(file); input.value = '';
         }
 
-        // === 7. 高仿微信聊天流气泡 DOM 生成器 ===
+        // === 高仿微信聊天流气泡 DOM 生成器 ===
         function logMessage(m, type, senderId) {
             const wrapper = document.createElement('div'); wrapper.className = `msg-wrapper ${type}`;
             const avatar = document.createElement('div'); avatar.className = 'user-avatar';
-            avatar.innerText = type === 'me' ? '我' : senderId.replace('User_', '').charAt(0);
+            // 头像抓取自定义名字或者福福手下的首字
+            avatar.innerText = type === 'me' ? '我' : senderId.charAt(0).toUpperCase();
+            
             const contentBox = document.createElement('div'); contentBox.className = 'msg-content-box';
             if (type === 'peer') {
                 const author = document.createElement('div'); author.className = 'msg-author'; author.innerText = senderId;
@@ -435,7 +453,8 @@
         function logImage(senderName, base64Data, type) {
             const wrapper = document.createElement('div'); wrapper.className = `msg-wrapper ${type}`;
             const avatar = document.createElement('div'); avatar.className = 'user-avatar';
-            avatar.innerText = type === 'me' ? '我' : senderName.replace('User_', '').charAt(0);
+            avatar.innerText = type === 'me' ? '我' : senderName.charAt(0).toUpperCase();
+            
             const contentBox = document.createElement('div'); contentBox.className = 'msg-content-box';
             if (type === 'peer') {
                 const author = document.createElement('div'); author.className = 'msg-author'; author.innerText = senderName;
@@ -468,7 +487,7 @@
         function createUserPill(id, isMe, hasVoice) {
             const d = document.createElement('div'); d.className = `user-pill ${isMe ? 'me' : ''}`;
             const a = document.createElement('div'); a.className = 'user-avatar';
-            a.innerText = id.replace('User_', '').charAt(0); 
+            a.innerText = id.charAt(0).toUpperCase(); 
             const n = document.createElement('span'); n.className = 'user-name'; 
             n.innerText = (isMe ? `${id} (我)` : id) + (hasVoice ? ' 🎙️' : '');
             d.appendChild(a); d.appendChild(n); return d;
