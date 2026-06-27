@@ -2,141 +2,151 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord 大厅 - 福福的秘密基地</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Discord 大厅 - 移动适配版</title>
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { background-color: #313338; color: #dbdee1; font-family: sans-serif; }
-        .discord-scrollbar::-webkit-scrollbar { width: 8px; }
+        .discord-scrollbar::-webkit-scrollbar { width: 6px; }
         .discord-scrollbar::-webkit-scrollbar-track { background: #2b2d31; }
-        .discord-scrollbar::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 4px; }
+        .discord-scrollbar::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 3px; }
+        /* 避免 iOS 滚动橡皮筋效应破坏全屏体验 */
+        html, body { position: fixed; width: 100%; height: 100%; overflow: hidden; }
     </style>
 </head>
 <body class="h-screen w-screen flex overflow-hidden select-none">
 
-    <div id="login-overlay" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-        <div class="bg-[#313338] w-full max-w-md rounded-lg p-6 shadow-2xl border border-gray-700 text-center">
-            <h2 class="text-2xl font-bold text-white mb-2">欢迎来到通讯大厅</h2>
-            <p class="text-gray-400 text-sm mb-6">请输入你的昵称并选择头像</p>
+    <div id="login-overlay" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+        <div class="bg-[#313338] w-full max-w-md rounded-lg p-5 sm:p-6 shadow-2xl border border-gray-700 text-center">
+            <h2 class="text-xl sm:text-2xl font-bold text-white mb-2">欢迎来到通讯大厅</h2>
+            <p class="text-gray-400 text-xs sm:text-sm mb-4 sm:mb-6">请输入你的昵称并选择头像</p>
             
             <input id="username-input" type="text" placeholder="不填默认：福福的小老弟" 
-                   class="w-full bg-[#1e1f22] border border-transparent focus:border-[#5865f2] rounded p-3 text-white outline-none mb-4 transition">
+                   class="w-full bg-[#1e1f22] border border-transparent focus:border-[#5865f2] rounded p-3 text-white outline-none mb-4 transition text-sm">
             
             <p class="text-left text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">随机生成的系统头像</p>
             <div class="flex justify-center mb-6">
-                <img id="preview-avatar" src="" class="w-20 h-20 rounded-full border-4 border-[#5865f2] bg-gray-600 object-cover">
+                <img id="preview-avatar" src="" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 border-[#5865f2] bg-gray-600 object-cover">
             </div>
 
-            <button id="join-btn" class="w-full bg-[#5865f2] hover:bg-[#4752c4] text-white font-medium py-3 rounded transition duration-200">
+            <button id="join-btn" class="w-full bg-[#5865f2] hover:bg-[#4752c4] text-white font-medium py-3 rounded transition duration-200 text-sm">
                 进入大厅
             </button>
         </div>
     </div>
 
-    <div class="flex flex-1 w-full h-full">
+    <div id="sidebar-backdrop" class="hidden fixed inset-0 bg-black/60 z-30 md:hidden transition-opacity duration-300"></div>
+
+    <div class="flex flex-1 w-full h-full relative">
         
-        <div class="w-18 bg-[#1e1f22] flex flex-col items-center py-3 gap-2">
-            <div class="w-12 h-12 bg-[#5865f2] rounded-[16px] flex items-center justify-center text-white font-bold cursor-pointer transition-all duration-200 group relative">
-                <i class="fa-brands fa-discord text-xl"></i>
-                <div class="absolute left-0 w-1 h-5 bg-white rounded-r-md group-hover:h-5 transition-all"></div>
-            </div>
-            <div class="w-8 h-[2px] bg-[#35363c] rounded my-1"></div>
-            <div class="w-12 h-12 bg-[#313338] hover:bg-[#23a55a] rounded-[24px] hover:rounded-[16px] flex items-center justify-center text-[#23a55a] hover:text-white cursor-pointer transition-all duration-200">
-                <i class="fa-solid fa-plus"></i>
-            </div>
-        </div>
-
-        <div class="w-60 bg-[#2b2d31] flex flex-col justify-between">
-            <div>
-                <div class="h-12 border-b border-[#1f2023] flex items-center justify-between px-4 font-bold text-white shadow-sm">
-                    <span>福福的专属基地</span>
-                    <i class="fa-solid fa-chevron-down text-sm text-gray-400"></i>
+        <div id="left-sidebar" class="fixed inset-y-0 left-0 z-40 flex transform -translate-x-full md:translate-x-0 md:relative transition-transform duration-300 ease-in-out h-full">
+            <div class="w-16 bg-[#1e1f22] flex flex-col items-center py-3 gap-2 flex-shrink-0">
+                <div class="w-10 h-10 bg-[#5865f2] rounded-[12px] flex items-center justify-center text-white font-bold cursor-pointer">
+                    <i class="fa-brands fa-discord text-lg"></i>
                 </div>
-                <div class="p-2">
-                    <div class="flex items-center text-gray-400 text-xs font-bold uppercase tracking-wider px-2 py-1">
-                        <i class="fa-solid fa-chevron-down mr-1 text-[10px]"></i> 文字与语音综合频道
+                <div class="w-8 h-[2px] bg-[#35363c] rounded my-1"></div>
+                <div class="w-10 h-10 bg-[#313338] text-[#23a55a] rounded-full flex items-center justify-center cursor-pointer">
+                    <i class="fa-solid fa-plus"></i>
+                </div>
+            </div>
+
+            <div class="w-52 bg-[#2b2d31] flex flex-col justify-between flex-shrink-0 border-r border-[#1f2023]/30">
+                <div>
+                    <div class="h-12 border-b border-[#1f2023] flex items-center justify-between px-3 font-bold text-white text-sm shadow-sm">
+                        <span class="truncate">福福的专属基地</span>
+                        <i class="fa-solid fa-chevron-down text-xs text-gray-400"></i>
                     </div>
-                    <div class="flex items-center justify-between bg-[#404249] text-white px-2 py-1.5 rounded my-1 cursor-pointer">
-                        <div class="flex items-center gap-2">
-                            <span class="text-gray-400 font-light text-lg">#</span>
-                            <span class="font-medium text-sm">通讯大厅 (强制)</span>
+                    <div class="p-2">
+                        <div class="flex items-center text-gray-400 text-[10px] font-bold uppercase tracking-wider px-1 py-1">
+                            <i class="fa-solid fa-chevron-down mr-1 text-[8px]"></i> 综合频道
                         </div>
-                        <i class="fa-solid fa-volume-high text-xs text-[#23a55a]"></i>
+                        <div class="flex items-center justify-between bg-[#404249] text-white px-2 py-1.5 rounded my-1 cursor-pointer">
+                            <div class="flex items-center gap-1.5 overflow-hidden">
+                                <span class="text-gray-400 font-light text-base">#</span>
+                                <span class="font-medium text-xs truncate">通讯大厅 (强制)</span>
+                            </div>
+                            <i class="fa-solid fa-volume-high text-[10px] text-[#23a55a]"></i>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="h-14 bg-[#232428] flex items-center justify-between px-2">
-                <div class="flex items-center gap-2 overflow-hidden">
-                    <img id="local-avatar" src="" class="w-8 h-8 rounded-full bg-gray-500 object-cover flex-shrink-0">
-                    <div class="flex flex-col overflow-hidden">
-                        <span id="local-name" class="text-white text-sm font-bold truncate">未登录</span>
-                        <span id="local-region" class="text-gray-400 text-xs truncate">探测地域中...</span>
+                <div class="h-14 bg-[#232428] flex items-center justify-between px-2">
+                    <div class="flex items-center gap-2 overflow-hidden">
+                        <img id="local-avatar" src="" class="w-8 h-8 rounded-full bg-gray-500 object-cover flex-shrink-0">
+                        <div class="flex flex-col overflow-hidden">
+                            <span id="local-name" class="text-white text-xs font-bold truncate">未登录</span>
+                            <span id="local-region" class="text-gray-400 text-[10px] truncate">探测中...</span>
+                        </div>
                     </div>
-                </div>
-                <div class="flex gap-1 text-gray-400">
-                    <button id="mic-toggle-btn" class="w-8 h-8 hover:bg-[#35373c] hover:text-white rounded flex items-center justify-center transition" title="麦克风控制">
-                        <i id="mic-icon" class="fa-solid fa-microphone text-sm"></i>
-                    </button>
-                    <button class="w-8 h-8 hover:bg-[#35373c] hover:text-white rounded flex items-center justify-center transition">
-                        <i class="fa-solid fa-gear text-sm"></i>
-                    </button>
+                    <div class="flex gap-0.5 text-gray-400">
+                        <button id="mic-toggle-btn" class="w-7 h-7 hover:bg-[#35373c] hover:text-white rounded flex items-center justify-center transition">
+                            <i id="mic-icon" class="fa-solid fa-microphone text-xs"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="flex-1 bg-[#313338] flex flex-col justify-between">
-            <div class="h-12 border-b border-[#1f2023] flex items-center px-4 gap-2 shadow-sm flex-shrink-0">
-                <span class="text-gray-400 font-light text-xl">#</span>
-                <span class="text-white font-bold">通讯大厅</span>
-                <div class="w-[1px] h-4 bg-gray-600 mx-2"></div>
-                <span class="text-gray-400 text-xs">在这里尽情畅聊、发送图片，甚至黑掉别人的麦克风。</span>
+        <div class="flex-1 bg-[#313338] flex flex-col justify-between h-full w-full min-w-0 relative z-10">
+            <div class="h-12 border-b border-[#1f2023] flex items-center justify-between px-3 shadow-sm flex-shrink-0">
+                <div class="flex items-center gap-2 min-w-0">
+                    <button id="menu-toggle-btn" class="md:hidden text-gray-400 hover:text-white p-1 pr-2">
+                        <i class="fa-solid fa-bars text-lg"></i>
+                    </button>
+                    <span class="text-gray-400 font-light text-xl">#</span>
+                    <span class="text-white font-bold text-sm truncate">通讯大厅</span>
+                    <div class="hidden sm:block w-[1px] h-4 bg-gray-600 mx-1"></div>
+                    <span class="hidden sm:inline text-gray-400 text-xs truncate">纯前端大乱斗连麦大厅</span>
+                </div>
+                
+                <button id="members-toggle-btn" class="md:hidden text-gray-400 hover:text-white p-1">
+                    <i class="fa-solid fa-user-group text-sm"></i>
+                </button>
             </div>
 
-            <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 discord-scrollbar">
-                <div class="text-center text-xs text-gray-500 my-4 border-b border-gray-700/30 pb-2">
-                    欢迎来到由纯前端搭建的极简 Discord。当前通话已自动启用 P2P 语音连麦。
+            <div id="chat-messages" class="flex-1 overflow-y-auto p-3 space-y-3 discord-scrollbar">
+                <div class="text-center text-[11px] text-gray-500 my-2 border-b border-gray-700/30 pb-2">
+                    欢迎来到由纯前端搭建的移动自适应 Discord。
                 </div>
             </div>
 
-            <div class="p-4 pt-0 flex-shrink-0 relative">
-                <div id="emoji-picker" class="hidden absolute bottom-16 left-4 bg-[#2b2d31] border border-gray-700 rounded-lg p-3 w-72 shadow-2xl z-20">
-                    <p class="text-xs font-bold text-gray-400 mb-2">微信常用系统表情</p>
-                    <div id="emoji-grid" class="grid grid-cols-8 gap-2 text-xl max-h-48 overflow-y-auto discord-scrollbar"></div>
+            <div class="p-3 pt-0 flex-shrink-0 relative">
+                <div id="emoji-picker" class="hidden absolute bottom-14 left-3 right-3 sm:right-auto bg-[#2b2d31] border border-gray-700 rounded-lg p-2.5 shadow-2xl z-20">
+                    <p class="text-[11px] font-bold text-gray-400 mb-2">微信常用系统表情</p>
+                    <div id="emoji-grid" class="grid grid-cols-7 sm:grid-cols-8 gap-2 text-xl max-h-40 overflow-y-auto discord-scrollbar"></div>
                 </div>
 
-                <div class="bg-[#383a40] rounded-lg flex items-center px-4 py-2.5 gap-3">
-                    <label class="cursor-pointer text-gray-400 hover:text-white transition">
-                        <i class="fa-solid fa-circle-plus text-lg"></i>
+                <div class="bg-[#383a40] rounded-lg flex items-center px-3 py-2 gap-2">
+                    <label class="cursor-pointer text-gray-400 hover:text-white transition p-1">
+                        <i class="fa-solid fa-circle-plus text-base"></i>
                         <input id="image-input" type="file" accept="image/*" class="hidden">
                     </label>
                     
-                    <input id="message-input" type="text" placeholder="在 #通讯大厅 发送消息..." 
-                           class="bg-transparent flex-1 outline-none text-white placeholder-gray-500 text-sm">
+                    <input id="message-input" type="text" placeholder="发送消息..." 
+                           class="bg-transparent flex-1 outline-none text-white placeholder-gray-500 text-xs sm:text-sm py-1">
                     
-                    <button id="emoji-btn" class="text-gray-400 hover:text-white transition">
-                        <i class="fa-regular fa-face-smile text-lg"></i>
+                    <button id="emoji-btn" class="text-gray-400 hover:text-white transition p-1">
+                        <i class="fa-regular fa-face-smile text-base"></i>
                     </button>
                 </div>
             </div>
         </div>
 
-        <div class="w-60 bg-[#2b2d31] p-4 hidden md:flex flex-col">
-            <h3 class="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">在线人员 — <span id="member-count">0</span></h3>
-            <div id="member-list" class="space-y-1 overflow-y-auto flex-1 discord-scrollbar">
-                </div>
+        <div id="right-sidebar" class="fixed inset-y-0 right-0 z-40 w-56 bg-[#2b2d31] p-3 transform translate-x-full md:translate-x-0 md:relative md:flex flex-col h-full transition-transform duration-300 ease-in-out border-l border-[#1f2023]/30">
+            <h3 class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-2">在线人员 — <span id="member-count">0</span></h3>
+            <div id="member-list" class="space-y-1 overflow-y-auto flex-1 discord-scrollbar"></div>
         </div>
     </div>
 
     <div id="remote-audios" class="hidden"></div>
 
     <script>
-        // --- 1. 配置与全局变量定义 ---
-        const ROOM_ID = "fufu_secret_global_lobby_2026"; // 唯一通信大厅标识
-        const MQTT_BROKER = "wss://broker.emqx.io:8084/mqtt"; // 国内访问极快的公开无鉴权MQTT服务器
+        // --- 全局变量与配置 ---
+        const ROOM_ID = "fufu_secret_global_lobby_2026"; 
+        const MQTT_BROKER = "wss://broker.emqx.io:8084/mqtt"; 
         
         let myId = "user_" + Math.random().toString(36).substr(2, 9);
         let myName = "福福的小老弟";
@@ -147,12 +157,9 @@
         let mqttClient = null;
         let peer = null;
         let localStream = null;
-        let activePeers = {}; // 记录房间内其它在线用户的信息
+        let activePeers = {}; 
 
-        // 微信常用经典系统表情符号数组映射
         const wechatEmojis = ["😀","😁","😂","🤣","😅","😊","😍","😘","😜","😎","😭","😡","😱","😓","😴","😷","🤔","🤫","👻","🤡","💩","👍","👎","👏","🤝","🔥","🎉","❤️"];
-
-        // 随机头像生成池 (使用高画质随机人像数据，避免墙内加载失败)
         const sampleAvatars = [
             "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=60",
             "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=60",
@@ -162,13 +169,12 @@
         ];
         myAvatar = sampleAvatars[Math.floor(Math.random() * sampleAvatars.length)];
 
-        // --- 2. 初始化核心逻辑 ---
         document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("preview-avatar").src = myAvatar;
             initEmojiPicker();
             detectRegion();
+            initMobileControllers(); // 注入移动端菜单控制核心
             
-            // 点击进入大厅按钮
             document.getElementById("join-btn").addEventListener("click", () => {
                 const inputVal = document.getElementById("username-input").value.trim();
                 if(inputVal) myName = inputVal;
@@ -180,27 +186,64 @@
                 startMediaAndConnect();
             });
 
-            // 监听键盘回车发消息
             document.getElementById("message-input").addEventListener("keydown", (e) => {
                 if(e.key === "Enter") sendTextMessage();
             });
 
-            // 本地麦克风控制
             document.getElementById("mic-toggle-btn").addEventListener("click", toggleLocalMic);
-
-            // 监听图片文件选择器
             document.getElementById("image-input").addEventListener("change", sendImageMessage);
-
-            // 表情按钮切换
             document.getElementById("emoji-btn").addEventListener("click", () => {
-                const picker = document.getElementById("emoji-picker");
-                picker.classList.toggle("hidden");
+                document.getElementById("emoji-picker").classList.toggle("hidden");
             });
         });
 
-        // --- 3. 基础功能：地域嗅探与表情包渲染 ---
+        // --- 移动端特定的交互逻辑（抽屉开关控制） ---
+        function initMobileControllers() {
+            const leftSidebar = document.getElementById("left-sidebar");
+            const rightSidebar = document.getElementById("right-sidebar");
+            const backdrop = document.getElementById("sidebar-backdrop");
+
+            const menuToggle = document.getElementById("menu-toggle-btn");
+            const membersToggle = document.getElementById("members-toggle-btn");
+
+            function closeAllSidebars() {
+                leftSidebar.classList.add("-translate-x-full");
+                rightSidebar.classList.add("translate-x-full");
+                backdrop.classList.add("hidden");
+            }
+
+            menuToggle.addEventListener("click", (e) => {
+                e.stopPropagation();
+                rightSidebar.classList.add("translate-x-full"); // 先关右边
+                leftSidebar.classList.toggle("-translate-x-full");
+                if (!leftSidebar.classList.contains("-translate-x-full")) {
+                    backdrop.classList.remove("hidden");
+                } else {
+                    backdrop.classList.add("hidden");
+                }
+            });
+
+            membersToggle.addEventListener("click", (e) => {
+                e.stopPropagation();
+                leftSidebar.classList.add("-translate-x-full"); // 先关左边
+                rightSidebar.classList.toggle("translate-x-full");
+                if (!rightSidebar.classList.contains("translate-x-full")) {
+                    backdrop.classList.remove("hidden");
+                } else {
+                    backdrop.classList.add("hidden");
+                }
+            });
+
+            // 点击遮罩层或者聊天区域，自动收起所有抽屉
+            backdrop.addEventListener("click", closeAllSidebars);
+            document.getElementById("chat-messages").addEventListener("click", () => {
+                closeAllSidebars();
+                document.getElementById("emoji-picker").classList.add("hidden");
+            });
+        }
+
+        // --- 地理位置与表情包处理 ---
         function detectRegion() {
-            // 使用公共免签、大陆访问平稳的 API 嗅探客户端所在大致市级/省级地区
             fetch('https://api.db-ip.com/v2/free/self')
                 .then(res => res.json())
                 .then(data => {
@@ -219,7 +262,7 @@
             wechatEmojis.forEach(emoji => {
                 const span = document.createElement("span");
                 span.innerText = emoji;
-                span.className = "cursor-pointer p-1 hover:bg-gray-600 rounded text-center transition";
+                span.className = "cursor-pointer p-1.5 hover:bg-gray-600 rounded text-center transition select-none active:bg-gray-700";
                 span.onclick = () => {
                     document.getElementById("message-input").value += emoji;
                     document.getElementById("emoji-picker").classList.add("hidden");
@@ -228,26 +271,18 @@
             });
         }
 
-        // --- 4. 实时多媒体与网络连接处理 ---
+        // --- P2P 音频与通讯逻辑 ---
         async function startMediaAndConnect() {
-            // A. 获取本地音频流
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                console.log("成功捕获麦克风。");
             } catch (err) {
-                console.warn("未获得麦克风权限，将作为听众模式进入。", err);
+                console.warn("麦克风不可用，自动切为听众模式。", err);
                 document.getElementById("mic-icon").className = "fa-solid fa-microphone-slash text-red-500";
                 isMuted = true;
             }
 
-            // B. 初始化 PeerJS (利用其公共服务建立P2P信令通道)
             peer = new Peer(myId);
-            peer.on('open', (id) => {
-                console.log('我的 PeerID 分配成功:', id);
-                connectMQTT(); // PeerReady 后再接通群聊信令
-            });
-
-            // 别人呼叫我时的回调处理（WebRTC 连麦接入）
+            peer.on('open', () => { connectMQTT(); });
             peer.on('call', (call) => {
                 call.answer(localStream);
                 handleIncomingCall(call);
@@ -256,21 +291,15 @@
 
         function connectMQTT() {
             mqttClient = mqtt.connect(MQTT_BROKER);
-
             mqttClient.on("connect", () => {
-                console.log("已成功接入通信中继网络。");
-                // 订阅文本聊天大厅、保活心跳广播以及控制链路指令
                 mqttClient.subscribe(`lobby/${ROOM_ID}/chat`);
                 mqttClient.subscribe(`lobby/${ROOM_ID}/presence`);
-                mqttClient.subscribe(`lobby/${ROOM_ID}/cmd/${myId}`); // 专属控制指令信道
-
-                // 上线通知并激活周期性心跳，告诉其他人我在线
+                mqttClient.subscribe(`lobby/${ROOM_ID}/cmd/${myId}`);
                 startHeartbeat();
             });
 
             mqttClient.on("message", (topic, message) => {
                 const payload = JSON.parse(message.toString());
-                
                 if (topic.endsWith('/chat')) {
                     displayMessage(payload);
                 } else if (topic.endsWith('/presence')) {
@@ -281,27 +310,22 @@
             });
         }
 
-        // --- 5. 核心特色：心跳广播、维护右侧通讯录、跨端静音 ---
         function startHeartbeat() {
             const sendPing = () => {
                 const packet = { id: myId, name: myName, avatar: myAvatar, region: myRegion, isMuted: isMuted, timestamp: Date.now() };
                 mqttClient.publish(`lobby/${ROOM_ID}/presence`, JSON.stringify(packet));
             };
             sendPing();
-            setInterval(sendPing, 3000); // 每 3 秒广播一次个人状态
-            setInterval(flushDeadPeers, 8000); // 定期清理断线的人
+            setInterval(sendPing, 3000); 
+            setInterval(flushDeadPeers, 8000); 
         }
 
         function handlePresence(peerInfo) {
-            if (peerInfo.id === myId) return; // 忽略自己
-            
-            // 如果是新面孔，主动发起 WebRTC P2P 音频通话呼叫
+            if (peerInfo.id === myId) return;
             if (!activePeers[peerInfo.id] && localStream) {
-                console.log(`发现新群友 ${peerInfo.name}，正在与其建立P2P通话连接...`);
                 let call = peer.call(peerInfo.id, localStream);
                 handleIncomingCall(call);
             }
-
             activePeers[peerInfo.id] = peerInfo;
             renderMemberList();
         }
@@ -310,7 +334,7 @@
             const now = Date.now();
             let changed = false;
             for (let id in activePeers) {
-                if (now - activePeers[id].timestamp > 10000) { // 10秒没心跳视为离线
+                if (now - activePeers[id].timestamp > 10000) { 
                     delete activePeers[id];
                     changed = true;
                 }
@@ -321,11 +345,8 @@
         function renderMemberList() {
             const listContainer = document.getElementById("member-list");
             listContainer.innerHTML = "";
-            
-            // 渲染自己
             listContainer.appendChild(createMemberRow(myId, myName, myAvatar, myRegion, isMuted, true));
             
-            // 渲染他人
             let count = 1;
             for (let id in activePeers) {
                 let p = activePeers[id];
@@ -337,48 +358,43 @@
 
         function createMemberRow(id, name, avatar, region, isPeerMuted, isSelf) {
             const row = document.createElement("div");
-            row.className = "flex items-center justify-between p-1.5 hover:bg-[#35373c] rounded group cursor-pointer text-sm";
-            
+            row.className = "flex items-center justify-between p-1.5 hover:bg-[#35373c] rounded text-xs";
             row.innerHTML = `
                 <div class="flex items-center gap-2 overflow-hidden">
                     <div class="relative flex-shrink-0">
-                        <img src="${avatar}" class="w-8 h-8 rounded-full object-cover">
-                        <div class="absolute bottom-0 right-0 w-2.5 h-2.5 ${isPeerMuted ? 'bg-red-500':'bg-[#23a55a]'} rounded-full border-2 border-[#2b2d31]"></div>
+                        <img src="${avatar}" class="w-7 h-7 rounded-full object-cover">
+                        <div class="absolute bottom-0 right-0 w-2 h-2 ${isPeerMuted ? 'bg-red-500':'bg-[#23a55a]'} rounded-full border border-[#2b2d31]"></div>
                     </div>
                     <div class="flex flex-col overflow-hidden">
                         <span class="text-[#dbdee1] font-medium truncate">${name}</span>
-                        <span class="text-gray-500 text-xs truncate">${region}</span>
+                        <span class="text-gray-500 text-[9px] truncate">${region}</span>
                     </div>
                 </div>
                 ${!isSelf ? `
-                    <button onclick="remoteMute('${id}')" class="hidden group-hover:flex w-6 h-6 bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white rounded items-center justify-center transition text-xs" title="强制静音他">
+                    <button onclick="remoteMute('${id}', event)" class="w-6 h-6 bg-red-600/20 active:bg-red-600 text-red-500 active:text-white rounded flex items-center justify-center transition text-[10px]" title="强制静音他">
                         <i class="fa-solid fa-microphone-slash"></i>
                     </button>
-                ` : '<span class="text-xs text-gray-500 bg-gray-700 px-1 rounded">自己</span>'}
+                ` : '<span class="text-[9px] text-gray-500 bg-gray-700 px-1 rounded flex-shrink-0">自己</span>'}
             `;
             return row;
         }
 
-        // 任何人都能静音任何人！核心逻辑
-        function remoteMute(targetId) {
-            console.log(`执行高级权限：正在下达指令强制静音终端 [${targetId}]`);
-            const cmdPacket = { type: "FORCE_MUTE", sender: myName };
+        // 任何人静音任何人（点击时阻止事件冒泡，防止关闭抽屉）
+        function remoteMute(targetId, event) {
+            if(event) event.stopPropagation();
+            const cmdPacket = { type: "FORCE_MUTE" };
             mqttClient.publish(`lobby/${ROOM_ID}/cmd/${targetId}`, JSON.stringify(cmdPacket));
         }
 
         function handleCommand(cmd) {
             if (cmd.type === "FORCE_MUTE") {
-                alert(`⚠️ 秩序警告：你被大厅内的群友强制执行了静音！`);
-                if (!isMuted) {
-                    toggleLocalMic(); // 强制闭麦
-                }
+                alert(`⚠️ 秩序提示：你已被群友强制执行静音关闭！`);
+                if (!isMuted) toggleLocalMic(); 
             }
         }
 
-        // --- 6. 音频流挂载与麦克风本地管理 ---
         function handleIncomingCall(call) {
             call.on('stream', (remoteStream) => {
-                // 检查是否已经挂载了该流，避免重复创建节点
                 let existingAudio = document.getElementById(`audio-${call.peer}`);
                 if (!existingAudio) {
                     const audioEl = document.createElement('audio');
@@ -397,26 +413,21 @@
                 isMuted = !isMuted;
                 audioTrack.enabled = !isMuted;
                 
-                // 更新UI状态
                 const icon = document.getElementById("mic-icon");
-                if (isMuted) {
-                    icon.className = "fa-solid fa-microphone-slash text-red-500";
-                } else {
-                    icon.className = "fa-solid fa-microphone text-sm";
-                }
-                // 立刻通知全大厅更新我的静音指示灯
+                icon.className = isMuted ? "fa-solid fa-microphone-slash text-red-500" : "fa-solid fa-microphone text-xs";
+                
                 const packet = { id: myId, name: myName, avatar: myAvatar, region: myRegion, isMuted: isMuted, timestamp: Date.now() };
                 mqttClient.publish(`lobby/${ROOM_ID}/presence`, JSON.stringify(packet));
             }
         }
 
-        // --- 7. 发送聊天消息模块 (文字与富文本图片) ---
+        // --- 消息处理 ---
         function sendTextMessage() {
             const input = document.getElementById("message-input");
             const text = input.value.trim();
             if (!text) return;
 
-            const msgPacket = { id: myId, name: myName, avatar: myAvatar, region: myRegion, type: "text", content: text, time: new Date().toLocaleTimeString() };
+            const msgPacket = { id: myId, name: myName, avatar: myAvatar, region: myRegion, type: "text", content: text, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
             mqttClient.publish(`lobby/${ROOM_ID}/chat`, JSON.stringify(msgPacket));
             input.value = "";
         }
@@ -427,8 +438,7 @@
 
             const reader = new FileReader();
             reader.onload = function(event) {
-                const base64Data = event.target.result;
-                const msgPacket = { id: myId, name: myName, avatar: myAvatar, region: myRegion, type: "image", content: base64Data, time: new Date().toLocaleTimeString() };
+                const msgPacket = { id: myId, name: myName, avatar: myAvatar, region: myRegion, type: "image", content: event.target.result, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
                 mqttClient.publish(`lobby/${ROOM_ID}/chat`, JSON.stringify(msgPacket));
             };
             reader.readAsDataURL(file);
@@ -437,28 +447,28 @@
         function displayMessage(msg) {
             const chatZone = document.getElementById("chat-messages");
             const msgRow = document.createElement("div");
-            msgRow.className = "flex items-start gap-4 hover:bg-[#2e3035] p-1 px-2 rounded group transition";
+            msgRow.className = "flex items-start gap-2.5 hover:bg-[#2e3035] p-1 px-1.5 rounded transition";
 
             let contentHtml = "";
             if (msg.type === "text") {
-                contentHtml = `<p class="text-[#dbdee1] text-sm break-all mt-1">${escapeHtml(msg.content)}</p>`;
+                contentHtml = `<p class="text-[#dbdee1] text-xs sm:text-sm break-all mt-0.5">${escapeHtml(msg.content)}</p>`;
             } else if (msg.type === "image") {
-                contentHtml = `<img src="${msg.content}" class="max-w-xs max-h-64 rounded-md border border-gray-700 mt-2 object-contain cursor-pointer" onclick="window.open(this.src)">`;
+                contentHtml = `<img src="${msg.content}" class="max-w-[200px] sm:max-w-xs max-h-48 rounded border border-gray-700 mt-1 object-contain" onclick="window.open(this.src)">`;
             }
 
             msgRow.innerHTML = `
-                <img src="${msg.avatar}" class="w-10 h-10 rounded-full mt-0.5 object-cover flex-shrink-0">
-                <div class="flex flex-col">
-                    <div class="flex items-baseline gap-2">
-                        <span class="text-white font-semibold text-sm hover:underline cursor-pointer">${msg.name}</span>
-                        <span class="text-[10px] text-gray-500 bg-gray-800 px-1 rounded">${msg.region}</span>
-                        <span class="text-xs text-gray-400 font-light">${msg.time}</span>
+                <img src="${msg.avatar}" class="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-0.5">
+                <div class="flex flex-col min-w-0">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="text-white font-semibold text-xs sm:text-sm truncate max-w-[120px]">${msg.name}</span>
+                        <span class="text-[9px] text-gray-400 bg-gray-800 px-1 rounded">${msg.region}</span>
+                        <span class="text-[10px] text-gray-500 font-light">${msg.time}</span>
                     </div>
                     ${contentHtml}
                 </div>
             `;
             chatZone.appendChild(msgRow);
-            chatZone.scrollTop = chatZone.scrollHeight; // 滚动触底
+            chatZone.scrollTop = chatZone.scrollHeight; 
         }
 
         function escapeHtml(str) {
