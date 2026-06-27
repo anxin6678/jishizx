@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Discord Mobile - 自定义头像版</title>
+    <title>Discord Mobile - 完美兼容版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
@@ -43,7 +43,7 @@
                 <i class="fa-brands fa-discord text-4xl text-white"></i>
             </div>
             <h2 class="text-2xl font-bold text-white mb-1">自定义个人资料</h2>
-            <p class="text-dcTextMuted text-xs mb-6">顺畅通过大陆网络进入全员 P2P 通讯大厅</p>
+            <p class="text-dcTextMuted text-xs mb-6">全环境兼容版 (支持iPad及国内网络优化)</p>
             
             <div class="bg-dcPanel rounded-2xl p-5 border border-black/20 shadow-lg mb-6 text-left">
                 <label class="text-[10px] font-bold text-dcTextMuted uppercase tracking-wider block mb-2">大厅昵称</label>
@@ -223,29 +223,25 @@
             "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=60"
         ];
         
-        // 随机掷骰子获取头像的方法
         function rollRandomAvatar() {
             myAvatar = sampleAvatars[Math.floor(Math.random() * sampleAvatars.length)];
             document.getElementById("preview-avatar").src = myAvatar;
         }
 
         document.addEventListener("DOMContentLoaded", () => {
-            rollRandomAvatar(); // 初始随机生成
+            rollRandomAvatar(); 
             initEmojiPicker();
             detectRegion();
             initAppDrawerInteractions(); 
+            initIOSAudioUnlocker(); // 启动iPad/iOS专用全隐式自动播放唤醒机制
             
-            // 扔骰子事件
             document.getElementById("random-avatar-btn").addEventListener("click", rollRandomAvatar);
-
-            // 监听自定义头像上传
             document.getElementById("avatar-upload-input").addEventListener("change", handleCustomAvatarUpload);
 
             document.getElementById("join-btn").addEventListener("click", () => {
                 const inputVal = document.getElementById("username-input").value.trim();
                 if(inputVal) myName = inputVal;
                 
-                // 全局多端同步更新名片
                 document.getElementById("drawer-local-name").innerText = myName;
                 document.getElementById("drawer-local-avatar").src = myAvatar;
                 document.getElementById("nav-local-avatar").src = myAvatar;
@@ -258,7 +254,6 @@
                 if(e.key === "Enter") sendTextMessage();
             });
 
-            // 控制自身麦克风开关
             document.getElementById("drawer-mic-btn").addEventListener("click", toggleLocalMic);
             document.getElementById("nav-profile-btn").addEventListener("click", toggleLocalMic);
             
@@ -269,7 +264,27 @@
             });
         });
 
-        // --- 🖼️ 自定义头像压缩中继拦截处理 ---
+        // --- 📱 iPad/iOS 自动播放策略强制解锁总线 ---
+        function initIOSAudioUnlocker() {
+            // 当iPad用户在屏幕上产生任意触控（如打字、划动聊天流、点菜单）时，静默唤醒并播放被系统锁死的音轨
+            const unlockHandler = () => {
+                const audios = document.querySelectorAll('#remote-audios audio');
+                audios.forEach(audio => {
+                    if (audio.paused) {
+                        audio.play().catch(() => {});
+                    }
+                });
+                // 自动解冻浏览器的全局 Web Audio 上下文
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    const tempCtx = new AudioContext();
+                    if (tempCtx.state === 'suspended') tempCtx.resume();
+                }
+            };
+            document.body.addEventListener('click', unlockHandler);
+            document.body.addEventListener('touchstart', unlockHandler);
+        }
+
         function handleCustomAvatarUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -279,13 +294,11 @@
                 const img = new Image();
                 img.onload = function() {
                     const canvas = document.createElement('canvas');
-                    // 强制裁剪成 120x120 像素小头像，优化 MQTT 心跳体积
                     const SIZE = 120; 
                     canvas.width = SIZE;
                     canvas.height = SIZE;
 
                     const ctx = canvas.getContext('2d');
-                    // 居中自适应裁剪算法
                     let srcX = 0, srcY = 0, srcW = img.width, srcH = img.height;
                     if (img.width > img.height) {
                         srcW = img.height;
@@ -296,7 +309,6 @@
                     }
                     ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, SIZE, SIZE);
                     
-                    // 转换为高压缩比 Base64 字符串
                     myAvatar = canvas.toDataURL('image/jpeg', 0.7);
                     document.getElementById("preview-avatar").src = myAvatar;
                 };
@@ -305,7 +317,6 @@
             reader.readAsDataURL(file);
         }
 
-        // --- 📱 Discord App 滑动抽屉交互流 ---
         function initAppDrawerInteractions() {
             const leftDrawer = document.getElementById("left-drawer");
             const rightDrawer = document.getElementById("right-drawer");
@@ -370,21 +381,45 @@
             });
         }
 
-        // --- 🎙️ P2P 连麦传输矩阵 ---
+        // --- 🎙️ WebRTC 与大陆高抗丢包打洞矩阵配置 ---
         async function startMediaAndConnect() {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                // 注入符合移动端的高保真语音降噪与回音消除约束配置
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
+                    video: false 
+                });
             } catch (err) {
-                console.warn("麦克风启动受限，已无缝切换为旁听者模式。", err);
+                console.warn("麦克风受限，自动调整为旁听模式。", err);
                 updateMuteUI(true);
                 isMuted = true;
             }
 
-            peer = new Peer(myId);
+            // 【核心修复】：注入对中国大陆高度可用、抗污染的多重公用 STUN 服务器矩阵
+            const peerConfig = {
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.sipgate.net:3478' },
+                        { urls: 'stun:stun.nextcloud.com:443' },
+                        { urls: 'stun:stun.stunprotocol.org:3478' },
+                        { urls: 'stun:stun.anyfirewall.com:3478' },
+                        { urls: 'stun:stun.voipbuster.com' },
+                        { urls: 'stun:stun.l.google.com:19302' } // 备用
+                    ],
+                    iceTransportPolicy: 'all'
+                }
+            };
+
+            peer = new Peer(myId, peerConfig);
+            
             peer.on('open', () => { connectMQTT(); });
             peer.on('call', (call) => {
                 call.answer(localStream);
                 handleIncomingCall(call);
+            });
+            
+            peer.on('error', (err) => {
+                console.error("P2P信令发生异常:", err.type);
             });
         }
 
@@ -485,8 +520,18 @@
                     const audioEl = document.createElement('audio');
                     audioEl.id = `audio-${call.peer}`;
                     audioEl.srcObject = remoteStream;
-                    audioEl.autoplay = true;
+                    
+                    // 【核心修复】：注入 iPadOS/iOS 刚性要求的 playsinline，防止全屏播放挂起
+                    audioEl.setAttribute('autoplay', 'true');
+                    audioEl.setAttribute('playsinline', 'true');
+                    audioEl.controls = false;
+                    
                     document.getElementById('remote-audios').appendChild(audioEl);
+                    
+                    // 异步尝试触发播放，若被 iPad 拦截则静默等待用户在屏幕上的任意交互点击进行解冻
+                    audioEl.play().catch(e => {
+                        console.log("iPad/iOS 自动播放策略拦截，等待屏幕点击隐式激活音轨...", e);
+                    });
                 }
             });
         }
@@ -523,7 +568,6 @@
             }
         }
 
-        // --- 💬 富文本流聊天模块 ---
         function sendTextMessage() {
             const input = document.getElementById("message-input");
             const text = input.value.trim();
