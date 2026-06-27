@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Discord Mobile</title>
+    <title>Discord Mobile - 纯净语音版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
@@ -19,6 +19,7 @@
                         dcNav: '#111214',
                         dcBlurple: '#5865f2',
                         dcGreen: '#23a55a',
+                        dcRed: '#f23f43',
                         dcInput: '#383a40',
                         dcTextMuted: '#949ba4'
                     }
@@ -28,7 +29,7 @@
     </script>
     <style>
         body { background-color: #313338; color: #dbdee1; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        .discord-scrollbar::-webkit-scrollbar { width: 3px; height: 3px; }
+        .discord-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .discord-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .discord-scrollbar::-webkit-scrollbar-thumb { background: #1e1f22; border-radius: 99px; }
         html, body { position: fixed; width: 100%; height: 100dvh; overflow: hidden; top: 0; left: 0; }
@@ -37,26 +38,26 @@
 <body class="h-dvh w-screen flex overflow-hidden select-none antialiased">
 
     <div id="login-overlay" class="fixed inset-0 bg-dcBgDark z-50 flex flex-col items-center justify-center p-6 pb-12">
-        <div class="w-full max-w-sm text-center">
+        <div class="w-full max-w-sm text-center animate-fade-in">
             <div class="inline-block p-4 bg-dcBlurple rounded-2xl shadow-xl shadow-dcBlurple/20 mb-6">
                 <i class="fa-brands fa-discord text-4xl text-white"></i>
             </div>
             <h2 class="text-2xl font-bold text-white mb-1">通过手机端加入</h2>
-            <p class="text-dcTextMuted text-xs mb-8">在这里，所有人均拥有同等闭麦权</p>
+            <p class="text-dcTextMuted text-xs mb-8">加入即自动拉通全员 P2P 大厅语音通话</p>
             
             <div class="bg-dcPanel rounded-2xl p-5 border border-black/20 shadow-lg mb-6 text-left">
-                <label class="text-[10px] font-bold text-dcTextMuted uppercase tracking-wider block mb-2">设置群聊昵称</label>
+                <label class="text-[10px] font-bold text-dcTextMuted uppercase tracking-wider block mb-2">设置大厅昵称</label>
                 <input id="username-input" type="text" placeholder="不填默认：福福的小老弟" 
                        class="w-full bg-dcBgDark border border-transparent focus:border-dcBlurple rounded-xl p-3 text-white outline-none mb-4 transition text-sm">
                 
-                <label class="text-[10px] font-bold text-dcTextMuted uppercase tracking-wider block mb-2">🎲 系统分配的随机头像</label>
+                <label class="text-[10px] font-bold text-dcTextMuted uppercase tracking-wider block mb-2">🎲 随机生成的头像</label>
                 <div class="flex justify-center py-2">
                     <img id="preview-avatar" src="" class="w-20 h-20 rounded-full border-4 border-dcBlurple object-cover shadow-md">
                 </div>
             </div>
 
             <button id="join-btn" class="w-full bg-dcBlurple hover:bg-[#4752c4] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl transition duration-200 text-sm shadow-lg shadow-dcBlurple/20">
-                进入通讯大厅
+                进入大厅
             </button>
         </div>
     </div>
@@ -86,7 +87,7 @@
                         </div>
                         <div class="p-2">
                             <div class="flex items-center text-dcTextMuted text-[10px] font-bold uppercase tracking-wider px-1 py-1 mb-1">
-                                <i class="fa-solid fa-chevron-down mr-1.5 text-[8px]"></i> 文字与语音频道
+                                <i class="fa-solid fa-chevron-down mr-1.5 text-[8px]"></i> 语音大厅频道
                             </div>
                             <div class="flex items-center justify-between bg-[#404249] text-white px-2.5 py-2 rounded-lg cursor-pointer">
                                 <div class="flex items-center gap-2 overflow-hidden">
@@ -102,7 +103,7 @@
                             <img id="drawer-local-avatar" src="" class="w-7 h-7 rounded-full object-cover">
                             <span id="drawer-local-name" class="text-white text-xs font-bold truncate">未登录</span>
                         </div>
-                        <button id="drawer-mic-btn" class="w-7 h-7 hover:bg-dcInput text-white rounded-md flex items-center justify-center">
+                        <button id="drawer-mic-btn" class="w-7 h-7 bg-dcInput/50 hover:bg-dcInput text-white rounded-md flex items-center justify-center transition active:scale-90">
                             <i id="drawer-mic-icon" class="fa-solid fa-microphone text-xs"></i>
                         </button>
                     </div>
@@ -134,19 +135,19 @@
                 </div>
 
                 <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 discord-scrollbar">
-                    <div class="text-center py-4 border-b border-gray-800/20">
-                        <p class="text-[9px] text-dcTextMuted tracking-widest font-mono">⚡ DISCORD MOBILE WEBRTC ACTIVE ⚡</p>
+                    <div class="text-center py-4 border-b border-gray-800/10">
+                        <p class="text-[9px] text-dcTextMuted tracking-widest font-mono">⚡ DISCORD MOBILE AUDIO LOBBY ACTIVE ⚡</p>
                     </div>
                 </div>
 
-                <div class="px-3 pb-3 pt-0 flex-shrink-0 relative">
-                    <div id="emoji-picker" class="hidden absolute bottom-14 left-3 right-3 bg-dcPanel border border-gray-800 rounded-2xl p-3 shadow-2xl z-20">
+                <div class="px-3 pb-3 pt-0 flex-shrink-0 relative bg-dcChat">
+                    <div id="emoji-picker" class="hidden absolute bottom-14 left-3 right-3 bg-dcPanel border border-gray-800 rounded-2xl p-3 shadow-2xl z-20 animate-fade-in">
                         <p class="text-[10px] font-bold text-dcTextMuted mb-2 px-1">微信系统表情</p>
                         <div id="emoji-grid" class="grid grid-cols-7 gap-3 text-2xl max-h-40 overflow-y-auto discord-scrollbar"></div>
                     </div>
 
                     <div class="bg-dcInput rounded-2xl flex items-center px-3 py-2 gap-2.5 shadow-md">
-                        <label class="cursor-pointer text-[#b5bac1] hover:text-white p-1 flex-shrink-0">
+                        <label class="cursor-pointer text-[#b5bac1] hover:text-white p-1 flex-shrink-0 active:scale-95 transition">
                             <i class="fa-solid fa-circle-plus text-xl"></i>
                             <input id="image-input" type="file" accept="image/*" class="hidden">
                         </label>
@@ -154,7 +155,7 @@
                         <input id="message-input" type="text" placeholder="发送消息到 #通讯大厅" 
                                class="bg-transparent flex-1 outline-none text-white placeholder-[#80848e] text-xs py-1.5 min-w-0">
                         
-                        <button id="emoji-btn" class="text-[#b5bac1] hover:text-white p-1 flex-shrink-0">
+                        <button id="emoji-btn" class="text-[#b5bac1] hover:text-white p-1 flex-shrink-0 active:scale-95 transition">
                             <i class="fa-regular fa-face-smile text-xl"></i>
                         </button>
                     </div>
@@ -167,22 +168,21 @@
             <div id="nav-home-btn" class="flex flex-col items-center justify-center w-12 h-full text-white cursor-pointer relative">
                 <i class="fa-brands fa-discord text-xl"></i>
                 <span class="text-[9px] font-bold scale-90 mt-0.5">服务器</span>
-                <div class="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full hidden"></div>
             </div>
-            <div class="flex flex-col items-center justify-center w-12 h-full text-dcTextMuted opacity-40 cursor-pointer">
+            <div class="flex flex-col items-center justify-center w-12 h-full text-dcTextMuted opacity-30 cursor-pointer">
                 <i class="fa-solid fa-message text-lg"></i>
                 <span class="text-[9px] scale-90 mt-0.5">信息</span>
             </div>
-            <div class="flex flex-col items-center justify-center w-12 h-full text-dcTextMuted opacity-40 cursor-pointer">
+            <div class="flex flex-col items-center justify-center w-12 h-full text-dcTextMuted opacity-30 cursor-pointer">
                 <i class="fa-solid fa-bell text-lg"></i>
                 <span class="text-[9px] scale-90 mt-0.5">通知</span>
             </div>
-            <div id="nav-profile-btn" class="flex flex-col items-center justify-center w-12 h-full cursor-pointer relative">
+            <div id="nav-profile-btn" class="flex flex-col items-center justify-center w-12 h-full cursor-pointer relative active:scale-95 transition">
                 <div class="relative w-6 h-6">
-                    <img id="nav-local-avatar" src="" class="w-full h-full rounded-full object-cover border border-transparent">
-                    <div id="nav-status-indicator" class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-dcGreen rounded-full border-2 border-dcNav"></div>
+                    <img id="nav-local-avatar" src="" class="w-full h-full rounded-full object-cover">
+                    <div id="nav-status-indicator" class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-dcGreen rounded-full border-2 border-dcNav transition-colors duration-200"></div>
                 </div>
-                <span class="text-[9px] text-dcTextMuted scale-90 mt-0.5">你</span>
+                <span id="nav-profile-tag" class="text-[9px] text-dcTextMuted scale-90 mt-0.5 font-medium">讲话中</span>
             </div>
         </div>
 
@@ -225,7 +225,6 @@
                 const inputVal = document.getElementById("username-input").value.trim();
                 if(inputVal) myName = inputVal;
                 
-                // 同步更新各处名片头像
                 document.getElementById("drawer-local-name").innerText = myName;
                 document.getElementById("drawer-local-avatar").src = myAvatar;
                 document.getElementById("nav-local-avatar").src = myAvatar;
@@ -238,8 +237,7 @@
                 if(e.key === "Enter") sendTextMessage();
             });
 
-            // 频道面板和底部“你”面板均可控麦克风
-            document.getElementById("mic-toggle-btn").addEventListener("click", toggleLocalMic);
+            // 联动全局开闭麦触发事件
             document.getElementById("drawer-mic-btn").addEventListener("click", toggleLocalMic);
             document.getElementById("nav-profile-btn").addEventListener("click", toggleLocalMic);
             
@@ -250,7 +248,7 @@
             });
         });
 
-        // --- 📱 Discord 手机版深度动效总线 ---
+        // --- 📱 App 侧滑机制与抽屉遮罩联动面板 ---
         function initAppDrawerInteractions() {
             const leftDrawer = document.getElementById("left-drawer");
             const rightDrawer = document.getElementById("right-drawer");
@@ -266,7 +264,6 @@
                 backdrop.classList.add("hidden");
             }
 
-            // 点击左上角或底部“服务器”图标，呼出左侧频道轴
             const openLeft = (e) => {
                 e.stopPropagation();
                 rightDrawer.classList.add("translate-x-full");
@@ -276,7 +273,6 @@
             menuBtn.addEventListener("click", openLeft);
             navHomeBtn.addEventListener("click", openLeft);
 
-            // 点击右上角，呼出右侧成员轴
             membersBtn.addEventListener("click", (e) => {
                 e.stopPropagation();
                 leftDrawer.classList.add("-translate-x-full");
@@ -317,12 +313,12 @@
             });
         }
 
-        // --- P2P 音频安全总线 ---
+        // --- 🎙️ P2P 纯前端语音状态同步总线 ---
         async function startMediaAndConnect() {
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
             } catch (err) {
-                console.warn("麦克风未授权", err);
+                console.warn("麦克风受限，已自动进入听众模式。", err);
                 updateMuteUI(true);
                 isMuted = true;
             }
@@ -340,7 +336,6 @@
             mqttClient.on("connect", () => {
                 mqttClient.subscribe(`lobby/${ROOM_ID}/chat`);
                 mqttClient.subscribe(`lobby/${ROOM_ID}/presence`);
-                mqttClient.subscribe(`lobby/${ROOM_ID}/cmd/${myId}`);
                 startHeartbeat();
             });
 
@@ -350,8 +345,6 @@
                     displayMessage(payload);
                 } else if (topic.endsWith('/presence')) {
                     handlePresence(payload);
-                } else if (topic.includes(`/cmd/${myId}`)) {
-                    handleCommand(payload);
                 }
             });
         }
@@ -410,36 +403,22 @@
             const row = document.createElement("div");
             row.className = "flex items-center justify-between p-2 hover:bg-[#35373c] rounded-xl text-xs mb-0.5 transition";
             row.innerHTML = `
-                <div class="flex items-center gap-2.5 overflow-hidden">
+                <div class="flex items-center gap-2.5 overflow-hidden flex-1">
                     <div class="relative flex-shrink-0">
                         <img src="${avatar}" class="w-7 h-7 rounded-full object-cover">
-                        <div class="absolute bottom-0 right-0 w-2.5 h-2.5 ${isPeerMuted ? 'bg-red-500':'bg-dcGreen'} rounded-full border-2 border-dcPanel"></div>
+                        <div class="absolute bottom-0 right-0 w-2.5 h-2.5 ${isPeerMuted ? 'bg-dcRed':'bg-dcGreen'} rounded-full border-2 border-dcPanel"></div>
                     </div>
-                    <div class="flex flex-col overflow-hidden">
-                        <span class="text-white font-bold truncate">${name}</span>
+                    <div class="flex flex-col overflow-hidden flex-1">
+                        <div class="flex items-center gap-1 min-w-0">
+                            <span class="text-white font-bold truncate">${name}</span>
+                            ${isPeerMuted ? '<i class="fa-solid fa-microphone-slash text-[10px] text-dcRed flex-shrink-0 ml-1"></i>' : ''}
+                        </div>
                         <span class="text-dcTextMuted text-[9px] truncate">${region}</span>
                     </div>
                 </div>
-                ${!isSelf ? `
-                    <button onclick="remoteMute('${id}', event)" class="w-7 h-7 bg-red-600/10 active:bg-red-600 text-red-400 active:text-white rounded-lg flex items-center justify-center transition text-xs">
-                        <i class="fa-solid fa-microphone-slash text-[10px]"></i>
-                    </button>
-                ` : '<span class="text-[9px] text-dcTextMuted bg-dcBgDark px-1.5 py-0.5 rounded-md flex-shrink-0">自己</span>'}
+                ${isSelf ? '<span class="text-[9px] text-dcTextMuted bg-dcBgDark px-1.5 py-0.5 rounded-md flex-shrink-0">自己</span>' : ''}
             `;
             return row;
-        }
-
-        function remoteMute(targetId, event) {
-            if(event) event.stopPropagation();
-            const cmdPacket = { type: "FORCE_MUTE" };
-            mqttClient.publish(`lobby/${ROOM_ID}/cmd/${targetId}`, JSON.stringify(cmdPacket));
-        }
-
-        function handleCommand(cmd) {
-            if (cmd.type === "FORCE_MUTE") {
-                alert(`⚠️ 你被大厅的其他成员强制闭麦了！`);
-                if (!isMuted) toggleLocalMic(); 
-            }
         }
 
         function handleIncomingCall(call) {
@@ -465,23 +444,30 @@
                 
                 const packet = { id: myId, name: myName, avatar: myAvatar, region: myRegion, isMuted: isMuted, timestamp: Date.now() };
                 mqttClient.publish(`lobby/${ROOM_ID}/presence`, JSON.stringify(packet));
+                renderMemberList(); // 瞬时重绘本地行状态
             }
         }
 
         function updateMuteUI(muted) {
             const dMicIcon = document.getElementById("drawer-mic-icon");
             const navIndicator = document.getElementById("nav-status-indicator");
+            const profileTag = document.getElementById("drawer-mic-btn");
+            const navTag = document.getElementById("nav-profile-tag");
             
             if (muted) {
-                dMicIcon.className = "fa-solid fa-microphone-slash text-red-500";
-                navIndicator.className = "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-dcNav";
+                dMicIcon.className = "fa-solid fa-microphone-slash text-dcRed";
+                navIndicator.className = "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-dcRed rounded-full border-2 border-dcNav";
+                navTag.innerText = "已静音";
+                navTag.className = "text-[9px] text-dcRed scale-90 mt-0.5 font-bold";
             } else {
-                dMicIcon.className = "fa-solid fa-microphone text-xs";
+                dMicIcon.className = "fa-solid fa-microphone text-xs text-white";
                 navIndicator.className = "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-dcGreen rounded-full border-2 border-dcNav";
+                navTag.innerText = "讲话中";
+                navTag.className = "text-[9px] text-dcTextMuted scale-90 mt-0.5 font-medium";
             }
         }
 
-        // --- 💬 发送总线 ---
+        // --- 💬 消息收发与防崩溃画布压缩引擎 ---
         function sendTextMessage() {
             const input = document.getElementById("message-input");
             const text = input.value.trim();
@@ -527,7 +513,7 @@
         function displayMessage(msg) {
             const chatZone = document.getElementById("chat-messages");
             const msgRow = document.createElement("div");
-            msgRow.className = "flex items-start gap-3 hover:bg-dcBgDark/20 p-1 px-1.5 rounded-lg transition animate-fade-in";
+            msgRow.className = "flex items-start gap-3 hover:bg-dcBgDark/20 p-1 px-1.5 rounded-lg transition";
 
             let contentHtml = "";
             if (msg.type === "text") {
