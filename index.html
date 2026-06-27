@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Discord Mobile - 纯净语音版</title>
+    <title>Discord Mobile - 自定义头像版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
@@ -38,26 +38,35 @@
 <body class="h-dvh w-screen flex overflow-hidden select-none antialiased">
 
     <div id="login-overlay" class="fixed inset-0 bg-dcBgDark z-50 flex flex-col items-center justify-center p-6 pb-12">
-        <div class="w-full max-w-sm text-center animate-fade-in">
-            <div class="inline-block p-4 bg-dcBlurple rounded-2xl shadow-xl shadow-dcBlurple/20 mb-6">
+        <div class="w-full max-w-sm text-center">
+            <div class="inline-block p-4 bg-dcBlurple rounded-2xl shadow-xl shadow-dcBlurple/20 mb-5">
                 <i class="fa-brands fa-discord text-4xl text-white"></i>
             </div>
-            <h2 class="text-2xl font-bold text-white mb-1">通过手机端加入</h2>
-            <p class="text-dcTextMuted text-xs mb-8">加入即自动拉通全员 P2P 大厅语音通话</p>
+            <h2 class="text-2xl font-bold text-white mb-1">自定义个人资料</h2>
+            <p class="text-dcTextMuted text-xs mb-6">顺畅通过大陆网络进入全员 P2P 通讯大厅</p>
             
             <div class="bg-dcPanel rounded-2xl p-5 border border-black/20 shadow-lg mb-6 text-left">
-                <label class="text-[10px] font-bold text-dcTextMuted uppercase tracking-wider block mb-2">设置大厅昵称</label>
+                <label class="text-[10px] font-bold text-dcTextMuted uppercase tracking-wider block mb-2">大厅昵称</label>
                 <input id="username-input" type="text" placeholder="不填默认：福福的小老弟" 
-                       class="w-full bg-dcBgDark border border-transparent focus:border-dcBlurple rounded-xl p-3 text-white outline-none mb-4 transition text-sm">
+                       class="w-full bg-dcBgDark border border-transparent focus:border-dcBlurple rounded-xl p-3 text-white outline-none mb-5 transition text-sm">
                 
-                <label class="text-[10px] font-bold text-dcTextMuted uppercase tracking-wider block mb-2">🎲 随机生成的头像</label>
-                <div class="flex justify-center py-2">
-                    <img id="preview-avatar" src="" class="w-20 h-20 rounded-full border-4 border-dcBlurple object-cover shadow-md">
+                <label class="text-[10px] font-bold text-dcTextMuted uppercase tracking-wider block mb-2">个人头像设置</label>
+                <div class="flex flex-col items-center gap-3 py-1">
+                    <div class="relative group">
+                        <img id="preview-avatar" src="" class="w-20 h-20 rounded-full border-4 border-dcBlurple object-cover shadow-md">
+                        <label for="avatar-upload-input" class="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white text-xs cursor-pointer opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition duration-200">
+                            <i class="fa-solid fa-camera text-base"></i>
+                        </label>
+                    </div>
+                    <input id="avatar-upload-input" type="file" accept="image/*" class="hidden">
+                    <button id="random-avatar-btn" class="text-xs text-dcBlurple hover:underline font-semibold bg-dcBlurple/10 px-3 py-1 rounded-full">
+                        <i class="fa-solid fa-dice mr-1"></i> 扔骰子换随机头像
+                    </button>
                 </div>
             </div>
 
             <button id="join-btn" class="w-full bg-dcBlurple hover:bg-[#4752c4] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl transition duration-200 text-sm shadow-lg shadow-dcBlurple/20">
-                进入大厅
+                进入通讯大厅
             </button>
         </div>
     </div>
@@ -136,7 +145,7 @@
 
                 <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 discord-scrollbar">
                     <div class="text-center py-4 border-b border-gray-800/10">
-                        <p class="text-[9px] text-dcTextMuted tracking-widest font-mono">⚡ DISCORD MOBILE AUDIO LOBBY ACTIVE ⚡</p>
+                        <p class="text-[9px] text-dcTextMuted tracking-widest font-mono">⚡ P2P WEBRTC AUDIO ACTIVE ⚡</p>
                     </div>
                 </div>
 
@@ -213,18 +222,30 @@
             "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=60",
             "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=60"
         ];
-        myAvatar = sampleAvatars[Math.floor(Math.random() * sampleAvatars.length)];
+        
+        // 随机掷骰子获取头像的方法
+        function rollRandomAvatar() {
+            myAvatar = sampleAvatars[Math.floor(Math.random() * sampleAvatars.length)];
+            document.getElementById("preview-avatar").src = myAvatar;
+        }
 
         document.addEventListener("DOMContentLoaded", () => {
-            document.getElementById("preview-avatar").src = myAvatar;
+            rollRandomAvatar(); // 初始随机生成
             initEmojiPicker();
             detectRegion();
             initAppDrawerInteractions(); 
             
+            // 扔骰子事件
+            document.getElementById("random-avatar-btn").addEventListener("click", rollRandomAvatar);
+
+            // 监听自定义头像上传
+            document.getElementById("avatar-upload-input").addEventListener("change", handleCustomAvatarUpload);
+
             document.getElementById("join-btn").addEventListener("click", () => {
                 const inputVal = document.getElementById("username-input").value.trim();
                 if(inputVal) myName = inputVal;
                 
+                // 全局多端同步更新名片
                 document.getElementById("drawer-local-name").innerText = myName;
                 document.getElementById("drawer-local-avatar").src = myAvatar;
                 document.getElementById("nav-local-avatar").src = myAvatar;
@@ -237,7 +258,7 @@
                 if(e.key === "Enter") sendTextMessage();
             });
 
-            // 联动全局开闭麦触发事件
+            // 控制自身麦克风开关
             document.getElementById("drawer-mic-btn").addEventListener("click", toggleLocalMic);
             document.getElementById("nav-profile-btn").addEventListener("click", toggleLocalMic);
             
@@ -248,7 +269,43 @@
             });
         });
 
-        // --- 📱 App 侧滑机制与抽屉遮罩联动面板 ---
+        // --- 🖼️ 自定义头像压缩中继拦截处理 ---
+        function handleCustomAvatarUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    // 强制裁剪成 120x120 像素小头像，优化 MQTT 心跳体积
+                    const SIZE = 120; 
+                    canvas.width = SIZE;
+                    canvas.height = SIZE;
+
+                    const ctx = canvas.getContext('2d');
+                    // 居中自适应裁剪算法
+                    let srcX = 0, srcY = 0, srcW = img.width, srcH = img.height;
+                    if (img.width > img.height) {
+                        srcW = img.height;
+                        srcX = (img.width - img.height) / 2;
+                    } else {
+                        srcH = img.width;
+                        srcY = (img.height - img.width) / 2;
+                    }
+                    ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, SIZE, SIZE);
+                    
+                    // 转换为高压缩比 Base64 字符串
+                    myAvatar = canvas.toDataURL('image/jpeg', 0.7);
+                    document.getElementById("preview-avatar").src = myAvatar;
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- 📱 Discord App 滑动抽屉交互流 ---
         function initAppDrawerInteractions() {
             const leftDrawer = document.getElementById("left-drawer");
             const rightDrawer = document.getElementById("right-drawer");
@@ -313,12 +370,12 @@
             });
         }
 
-        // --- 🎙️ P2P 纯前端语音状态同步总线 ---
+        // --- 🎙️ P2P 连麦传输矩阵 ---
         async function startMediaAndConnect() {
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
             } catch (err) {
-                console.warn("麦克风受限，已自动进入听众模式。", err);
+                console.warn("麦克风启动受限，已无缝切换为旁听者模式。", err);
                 updateMuteUI(true);
                 isMuted = true;
             }
@@ -444,14 +501,13 @@
                 
                 const packet = { id: myId, name: myName, avatar: myAvatar, region: myRegion, isMuted: isMuted, timestamp: Date.now() };
                 mqttClient.publish(`lobby/${ROOM_ID}/presence`, JSON.stringify(packet));
-                renderMemberList(); // 瞬时重绘本地行状态
+                renderMemberList(); 
             }
         }
 
         function updateMuteUI(muted) {
             const dMicIcon = document.getElementById("drawer-mic-icon");
             const navIndicator = document.getElementById("nav-status-indicator");
-            const profileTag = document.getElementById("drawer-mic-btn");
             const navTag = document.getElementById("nav-profile-tag");
             
             if (muted) {
@@ -467,7 +523,7 @@
             }
         }
 
-        // --- 💬 消息收发与防崩溃画布压缩引擎 ---
+        // --- 💬 富文本流聊天模块 ---
         function sendTextMessage() {
             const input = document.getElementById("message-input");
             const text = input.value.trim();
