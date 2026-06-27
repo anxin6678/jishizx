@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Discord Mobile - 设备识别版</title>
+    <title>Discord Mobile - 诊断排查版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
@@ -43,7 +43,7 @@
                 <i class="fa-brands fa-discord text-4xl text-white"></i>
             </div>
             <h2 class="text-2xl font-bold text-white mb-1">自定义个人资料</h2>
-            <p class="text-dcTextMuted text-xs mb-6">自适应网络与全设备兼容环境</p>
+            <p class="text-dcTextMuted text-xs mb-6">全设备自适应与核心语音诊断系统</p>
             
             <div class="bg-dcPanel rounded-2xl p-5 border border-black/20 shadow-lg mb-6 text-left">
                 <label class="text-[10px] font-bold text-dcTextMuted uppercase tracking-wider block mb-2">大厅昵称</label>
@@ -67,6 +67,47 @@
 
             <button id="join-btn" class="w-full bg-dcBlurple hover:bg-[#4752c4] active:scale-[0.98] text-white font-bold py-3.5 rounded-xl transition duration-200 text-sm shadow-lg shadow-dcBlurple/20">
                 进入通讯大厅
+            </button>
+        </div>
+    </div>
+
+    <div id="diagnostic-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-dcPanel w-full max-w-sm rounded-2xl p-5 border border-gray-800 shadow-2xl animate-fade-in text-sm">
+            <div class="flex items-center justify-between border-b border-dcBgDark pb-3 mb-4">
+                <div class="flex items-center gap-2 text-white font-bold">
+                    <i class="fa-solid fa-screwdriver-wrench text-dcBlurple"></i>
+                    <span>语音连麦实时诊断中心</span>
+                </div>
+                <button id="close-diagnostic-btn" class="text-dcTextMuted hover:text-white p-1 text-base">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-3.5 mb-5 text-xs">
+                <div class="flex items-center justify-between bg-dcBgDark/40 p-2.5 rounded-xl">
+                    <span class="text-dcTextMuted">1. 麦克风授权状态</span>
+                    <span id="diag-mic-perm" class="font-bold text-dcTextMuted">检查中...</span>
+                </div>
+                <div class="flex items-center justify-between bg-dcBgDark/40 p-2.5 rounded-xl">
+                    <span class="text-dcTextMuted">2. 本地音频流轨道</span>
+                    <span id="diag-audio-track" class="font-bold text-dcTextMuted">检查中...</span>
+                </div>
+                <div class="flex items-center justify-between bg-dcBgDark/40 p-2.5 rounded-xl">
+                    <span class="text-dcTextMuted">3. 播放引擎 (AudioContext)</span>
+                    <span id="diag-audio-ctx" class="font-bold text-dcTextMuted">检查中...</span>
+                </div>
+                <div class="flex items-center justify-between bg-dcBgDark/40 p-2.5 rounded-xl">
+                    <span class="text-dcTextMuted">4. P2P 信令服务器链路</span>
+                    <span id="diag-p2p-status" class="font-bold text-dcTextMuted">检查中...</span>
+                </div>
+            </div>
+
+            <div class="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-[11px] text-yellow-500 leading-relaxed mb-4">
+                <i class="fa-solid fa-circle-info mr-1"></i> 提示：iPad/iPhone用户如听不见，请确保未开启侧边**物理静音开关**。
+            </div>
+
+            <button id="reset-audio-btn" class="w-full bg-dcRed hover:bg-red-600 active:scale-95 text-white font-bold py-2.5 rounded-xl transition text-xs shadow-md">
+                <i class="fa-solid fa-rotate mr-1"></i> 说话没反应？一键重置音频网络
             </button>
         </div>
     </div>
@@ -107,6 +148,7 @@
                             </div>
                         </div>
                     </div>
+                    
                     <div class="h-12 bg-[#232428] flex items-center justify-between px-3">
                         <div class="flex items-center gap-2 overflow-hidden">
                             <img id="drawer-local-avatar" src="" class="w-7 h-7 rounded-full object-cover">
@@ -135,7 +177,10 @@
                             <span class="text-white font-bold text-sm truncate">通讯大厅</span>
                         </div>
                     </div>
-                    <div class="flex items-center gap-4 text-[#b5bac1]">
+                    <div class="flex items-center gap-3.5 text-[#b5bac1]">
+                        <button id="open-diagnostic-btn" class="p-1 hover:text-white transition active:scale-90" title="语音排查与诊断">
+                            <i class="fa-solid fa-screwdriver-wrench text-base"></i>
+                        </button>
                         <button id="members-toggle-btn" class="p-1 hover:text-white">
                             <i class="fa-solid fa-user-group text-sm"></i>
                         </button>
@@ -223,28 +268,14 @@
             "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150&auto=format&fit=crop&q=60"
         ];
         
-        // --- ⚙️ 高精度设备/环境指纹嗅探引擎 ---
         function detectDeviceType() {
             const ua = navigator.userAgent;
-            if (/iPad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
-                return "iPad";
-            }
-            if (/iPhone|iPod/.test(ua)) {
-                return "iPhone";
-            }
-            if (/Android/.test(ua)) {
-                return "Android";
-            }
-            if (/Windows/.test(ua)) {
-                return "Windows";
-            }
-            if (/Macintosh|MacIntel/.test(ua)) {
-                return "Mac";
-            }
-            if (/Linux/.test(ua)) {
-                return "Linux";
-            }
-            return "手机端";
+            if (/iPad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return "iPad";
+            if (/iPhone|iPod/.test(ua)) return "iPhone";
+            if (/Android/.test(ua)) return "Android";
+            if (/Windows/.test(ua)) return "Windows";
+            if (/Macintosh|MacIntel/.test(ua)) return "Mac";
+            return "智能设备";
         }
 
         function rollRandomAvatar() {
@@ -253,12 +284,13 @@
         }
 
         document.addEventListener("DOMContentLoaded", () => {
-            myDevice = detectDeviceType(); // 载入时识别设备
+            myDevice = detectDeviceType(); 
             rollRandomAvatar(); 
             initEmojiPicker();
             detectRegion();
             initAppDrawerInteractions(); 
             initIOSAudioUnlocker(); 
+            initDiagnosticCenter(); // 启动诊断总线监听
             
             document.getElementById("random-avatar-btn").addEventListener("click", rollRandomAvatar);
             document.getElementById("avatar-upload-input").addEventListener("change", handleCustomAvatarUpload);
@@ -289,152 +321,95 @@
             });
         });
 
-        function initIOSAudioUnlocker() {
-            const unlockHandler = () => {
-                const audios = document.querySelectorAll('#remote-audios audio');
-                audios.forEach(audio => {
-                    if (audio.paused) audio.play().catch(() => {});
-                });
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (AudioContext) {
-                    const tempCtx = new AudioContext();
-                    if (tempCtx.state === 'suspended') tempCtx.resume();
+        // --- 🔧 【新增】智能诊断面板交互与动态计算逻辑 ---
+        function initDiagnosticCenter() {
+            const modal = document.getElementById("diagnostic-modal");
+            const openBtn = document.getElementById("open-diagnostic-btn");
+            const closeBtn = document.getElementById("close-diagnostic-btn");
+            const resetBtn = document.getElementById("reset-audio-btn");
+
+            openBtn.addEventListener("click", () => {
+                modal.classList.remove("hidden");
+                runLiveDiagnostic(); // 打开时立刻做体检
+            });
+
+            closeBtn.addEventListener("click", () => modal.classList.add("hidden"));
+            resetBtn.addEventListener("click", () => {
+                modal.classList.add("hidden");
+                resetAudioNetwork(); // 执行一键全网络热重置
+            });
+        }
+
+        function runLiveDiagnostic() {
+            const pMic = document.getElementById("diag-mic-perm");
+            const pTrack = document.getElementById("diag-audio-track");
+            const pCtx = document.getElementById("diag-audio-ctx");
+            const pP2p = document.getElementById("diag-p2p-status");
+
+            // 1. 检查麦克风硬件/流存在
+            if (localStream) {
+                pMic.innerText = "已授权 ✅"; pMic.className = "font-bold text-dcGreen";
+                // 2. 检查轨道活性
+                const track = localStream.getAudioTracks()[0];
+                if (track && track.readyState === 'live') {
+                    pTrack.innerText = isMuted ? "已关闭 (本地静音) 🛑" : "正常采集传输中 🎙️";
+                    pTrack.className = isMuted ? "font-bold text-yellow-500" : "font-bold text-dcGreen";
+                } else {
+                    pTrack.innerText = "流轨道异常挂死 ❌"; pTrack.className = "font-bold text-dcRed";
                 }
-            };
-            document.body.addEventListener('click', unlockHandler);
-            document.body.addEventListener('touchstart', unlockHandler);
-        }
-
-        function handleCustomAvatarUpload(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    const SIZE = 120; 
-                    canvas.width = SIZE;
-                    canvas.height = SIZE;
-
-                    const ctx = canvas.getContext('2d');
-                    let srcX = 0, srcY = 0, srcW = img.width, srcH = img.height;
-                    if (img.width > img.height) {
-                        srcW = img.height;
-                        srcX = (img.width - img.height) / 2;
-                    } else {
-                        srcH = img.width;
-                        srcY = (img.height - img.width) / 2;
-                    }
-                    ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, SIZE, SIZE);
-                    
-                    myAvatar = canvas.toDataURL('image/jpeg', 0.7);
-                    document.getElementById("preview-avatar").src = myAvatar;
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function initAppDrawerInteractions() {
-            const leftDrawer = document.getElementById("left-drawer");
-            const rightDrawer = document.getElementById("right-drawer");
-            const backdrop = document.getElementById("sidebar-backdrop");
-
-            const menuBtn = document.getElementById("menu-toggle-btn");
-            const membersBtn = document.getElementById("members-toggle-btn");
-            const navHomeBtn = document.getElementById("nav-home-btn");
-
-            function hideAllDrawers() {
-                leftDrawer.classList.add("-translate-x-full");
-                rightDrawer.classList.add("translate-x-full");
-                backdrop.classList.add("hidden");
+            } else {
+                pMic.innerText = "未授权/拒绝 ❌"; pMic.className = "font-bold text-dcRed";
+                pTrack.innerText = "无音频源 ❌"; pTrack.className = "font-bold text-dcRed";
             }
 
-            const openLeft = (e) => {
-                e.stopPropagation();
-                rightDrawer.classList.add("translate-x-full");
-                leftDrawer.classList.toggle("-translate-x-full");
-                backdrop.classList.toggle("hidden", leftDrawer.classList.contains("-translate-x-full"));
-            };
-            menuBtn.addEventListener("click", openLeft);
-            navHomeBtn.addEventListener("click", openLeft);
+            // 3. 检查 AudioContext (防止iPad自动锁死)
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) {
+                pCtx.innerText = "就绪 ✅"; pCtx.className = "font-bold text-dcGreen";
+            } else {
+                pCtx.innerText = "内核不支持 ❌"; pCtx.className = "font-bold text-dcRed";
+            }
 
-            membersBtn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                leftDrawer.classList.add("-translate-x-full");
-                rightDrawer.classList.toggle("translate-x-full");
-                backdrop.classList.toggle("hidden", rightDrawer.classList.contains("translate-x-full"));
-            });
-
-            backdrop.addEventListener("click", hideAllDrawers);
-            document.getElementById("chat-messages").addEventListener("click", () => {
-                hideAllDrawers();
-                document.getElementById("emoji-picker").classList.add("hidden");
-            });
+            // 4. 检查 P2P 打洞网络
+            if (peer && !peer.destroyed) {
+                pP2p.innerText = peer.disconnected ? "中继器断开 ⚠️" : "隧道打洞就绪 🌐";
+                pP2p.className = peer.disconnected ? "font-bold text-yellow-500" : "font-bold text-dcGreen";
+            } else {
+                pP2p.innerText = "未启动/崩溃 ❌"; pP2p.className = "font-bold text-dcRed";
+            }
         }
 
-        function detectRegion() {
-            fetch('https://api.db-ip.com/v2/free/self')
-                .then(res => res.json())
-                .then(data => {
-                    if (data.city || data.province || data.countryName) {
-                        myRegion = data.city || data.province || data.countryName;
-                    }
-                })
-                .catch(() => { myRegion = "中国大陆"; });
-        }
+        // --- 🔧 【核心重构】纯前端 P2P 通道一键完全秘密重构引擎 ---
+        async function resetAudioNetwork() {
+            console.log("🚀 启动音频网络深度全清理重置机制...");
+            
+            // A. 清理宿主容器内的老音频标签，阻断任何声音挂死残留
+            document.getElementById('remote-audios').innerHTML = "";
 
-        function initEmojiPicker() {
-            const grid = document.getElementById("emoji-grid");
-            wechatEmojis.forEach(emoji => {
-                const span = document.createElement("span");
-                span.innerText = emoji;
-                span.className = "cursor-pointer p-2 hover:bg-dcInput text-center transition select-none active:bg-gray-800 rounded-xl";
-                span.onclick = (e) => {
-                    e.stopPropagation();
-                    document.getElementById("message-input").value += emoji;
-                    document.getElementById("emoji-picker").classList.add("hidden");
-                };
-                grid.appendChild(span);
-            });
-        }
+            // B. 彻底优雅销毁老 PeerJS 实例并解封占用的本地端口
+            if (peer) {
+                try {
+                    peer.destroy();
+                } catch(e) { console.log(e); }
+                peer = null;
+            }
 
-        // --- 🎙️ WebRTC 与大陆打洞网络优化配置 ---
-        async function startMediaAndConnect() {
+            // C. 重新申请采集麦克风，确保底层硬件轨道从系统层苏醒
             try {
+                if(localStream) {
+                    localStream.getTracks().forEach(t => t.stop()); // 先杀掉旧流轨道
+                }
                 localStream = await navigator.mediaDevices.getUserMedia({ 
                     audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
                     video: false 
                 });
-                
-                // 定期巡检本地麦克风轨道，防止移动端切后台后被系统悄悄关死
-                setInterval(() => {
-                    if (localStream && !isMuted) {
-                        const track = localStream.getAudioTracks()[0];
-                        if (track && (track.muted || track.readyState === 'ended')) {
-                            console.warn("检测到本地音频轨道挂死，正在尝试自动重启...");
-                            navigator.mediaDevices.getUserMedia({ audio: true }).then(newStream => {
-                                localStream = newStream;
-                                // 重新替换所有 Peer 的老轨道
-                                for (let peerId in activePeers) {
-                                    if(peer.connections[peerId]) {
-                                        const sender = peer.connections[peerId][0].peerConnection.getSenders()[0];
-                                        if(sender) sender.replaceTrack(newStream.getAudioTracks()[0]);
-                                    }
-                                }
-                            });
-                        }
-                    }
-                }, 5000);
-
-            } catch (err) {
-                console.warn("麦克风启动受限，自动调整为旁听模式。", err);
-                updateMuteUI(true);
-                isMuted = true;
+                isMuted = false;
+                updateMuteUI(false);
+            } catch(err) {
+                console.error("重置硬件流失败:", err);
             }
 
+            // D. 重构公用 STUN 高打洞抗丢包网络矩阵并建立新的 P2P 握手
             const peerConfig = {
                 config: {
                     iceServers: [
@@ -445,243 +420,4 @@
                         { urls: 'stun:stun.voipbuster.com' },
                         { urls: 'stun:stun.l.google.com:19302' }
                     ],
-                    iceTransportPolicy: 'all',
-                    iceCandidatePoolSize: 10
-                }
-            };
-
-            peer = new Peer(myId, peerConfig);
-            
-            peer.on('open', () => { connectMQTT(); });
-            peer.on('call', (call) => {
-                call.answer(localStream);
-                handleIncomingCall(call);
-            });
-        }
-
-        function connectMQTT() {
-            mqttClient = mqtt.connect(MQTT_BROKER);
-            mqttClient.on("connect", () => {
-                mqttClient.subscribe(`lobby/${ROOM_ID}/chat`);
-                mqttClient.subscribe(`lobby/${ROOM_ID}/presence`);
-                startHeartbeat();
-            });
-
-            mqttClient.on("message", (topic, message) => {
-                const payload = JSON.parse(message.toString());
-                if (topic.endsWith('/chat')) {
-                    displayMessage(payload);
-                } else if (topic.endsWith('/presence')) {
-                    handlePresence(payload);
-                }
-            });
-        }
-
-        function startHeartbeat() {
-            const sendPing = () => {
-                const packet = { id: myId, name: myName, avatar: myAvatar, region: myRegion, device: myDevice, isMuted: isMuted, timestamp: Date.now() };
-                mqttClient.publish(`lobby/${ROOM_ID}/presence`, JSON.stringify(packet));
-            };
-            sendPing();
-            setInterval(sendPing, 3500); 
-            setInterval(flushDeadPeers, 9000); 
-        }
-
-        function handlePresence(peerInfo) {
-            if (peerInfo.id === myId) return;
-            if (!activePeers[peerInfo.id]) {
-                if (localStream && myId > peerInfo.id) {
-                    let call = peer.call(peerInfo.id, localStream);
-                    handleIncomingCall(call);
-                }
-            }
-            activePeers[peerInfo.id] = peerInfo;
-            renderMemberList();
-        }
-
-        function flushDeadPeers() {
-            const now = Date.now();
-            let changed = false;
-            for (let id in activePeers) {
-                if (now - activePeers[id].timestamp > 11000) { 
-                    const oldAudio = document.getElementById(`audio-${id}`);
-                    if (oldAudio) oldAudio.remove();
-                    delete activePeers[id];
-                    changed = true;
-                }
-            }
-            if (changed) renderMemberList();
-        }
-
-        function renderMemberList() {
-            const listContainer = document.getElementById("member-list");
-            listContainer.innerHTML = "";
-            listContainer.appendChild(createMemberRow(myId, myName, myAvatar, myRegion, myDevice, isMuted, true));
-            
-            let count = 1;
-            for (let id in activePeers) {
-                let p = activePeers[id];
-                listContainer.appendChild(createMemberRow(p.id, p.name, p.avatar, p.region, p.device, p.isMuted, false));
-                count++;
-            }
-            document.getElementById("member-count").innerText = count;
-        }
-
-        function createMemberRow(id, name, avatar, region, device, isPeerMuted, isSelf) {
-            const row = document.createElement("div");
-            row.className = "flex items-center justify-between p-2 hover:bg-[#35373c] rounded-xl text-xs mb-0.5 transition";
-            
-            // 获取对应的设备小图标
-            let deviceIcon = "fa-solid fa-mobile-screen-button";
-            if(device === "Windows" || device === "Mac" || device === "Linux") deviceIcon = "fa-solid fa-desktop";
-            if(device === "iPad") deviceIcon = "fa-solid fa-tablet-screen-button";
-
-            row.innerHTML = `
-                <div class="flex items-center gap-2.5 overflow-hidden flex-1">
-                    <div class="relative flex-shrink-0">
-                        <img src="${avatar}" class="w-7 h-7 rounded-full object-cover">
-                        <div class="absolute bottom-0 right-0 w-2.5 h-2.5 ${isPeerMuted ? 'bg-dcRed':'bg-dcGreen'} rounded-full border-2 border-dcPanel"></div>
-                    </div>
-                    <div class="flex flex-col overflow-hidden flex-1">
-                        <div class="flex items-center gap-1 min-w-0">
-                            <span class="text-white font-bold truncate">${name}</span>
-                            ${isPeerMuted ? '<i class="fa-solid fa-microphone-slash text-[10px] text-dcRed flex-shrink-0 ml-1"></i>' : ''}
-                        </div>
-                        <div class="flex items-center gap-1.5 text-dcTextMuted text-[9px] truncate">
-                            <span>${region}</span>
-                            <span>•</span>
-                            <span class="flex items-center gap-0.5"><i class="${deviceIcon} text-[8px]"></i> ${device}</span>
-                        </div>
-                    </div>
-                </div>
-                ${isSelf ? '<span class="text-[9px] text-dcTextMuted bg-dcBgDark px-1.5 py-0.5 rounded-md flex-shrink-0">自己</span>' : ''}
-            `;
-            return row;
-        }
-
-        function handleIncomingCall(call) {
-            call.on('stream', (remoteStream) => {
-                let existingAudio = document.getElementById(`audio-${call.peer}`);
-                if (!existingAudio) {
-                    const audioEl = document.createElement('audio');
-                    audioEl.id = `audio-${call.peer}`;
-                    audioEl.srcObject = remoteStream;
-                    
-                    audioEl.setAttribute('autoplay', 'true');
-                    audioEl.setAttribute('playsinline', 'true');
-                    audioEl.controls = false;
-                    
-                    document.getElementById('remote-audios').appendChild(audioEl);
-                    audioEl.play().catch(() => {});
-                }
-            });
-        }
-
-        function toggleLocalMic() {
-            if (!localStream) return;
-            let audioTrack = localStream.getAudioTracks()[0];
-            if (audioTrack) {
-                isMuted = !isMuted;
-                audioTrack.enabled = !isMuted;
-                updateMuteUI(isMuted);
-                
-                const packet = { id: myId, name: myName, avatar: myAvatar, region: myRegion, device: myDevice, isMuted: isMuted, timestamp: Date.now() };
-                mqttClient.publish(`lobby/${ROOM_ID}/presence`, JSON.stringify(packet));
-                renderMemberList(); 
-            }
-        }
-
-        function updateMuteUI(muted) {
-            const dMicIcon = document.getElementById("drawer-mic-icon");
-            const navIndicator = document.getElementById("nav-status-indicator");
-            const navTag = document.getElementById("nav-profile-tag");
-            
-            if (muted) {
-                dMicIcon.className = "fa-solid fa-microphone-slash text-dcRed";
-                navIndicator.className = "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-dcRed rounded-full border-2 border-dcNav";
-                navTag.innerText = "已静音";
-                navTag.className = "text-[9px] text-dcRed scale-90 mt-0.5 font-bold";
-            } else {
-                dMicIcon.className = "fa-solid fa-microphone text-xs text-white";
-                navIndicator.className = "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-dcGreen rounded-full border-2 border-dcNav";
-                navTag.innerText = "讲话中";
-                navTag.className = "text-[9px] text-dcTextMuted scale-90 mt-0.5 font-medium";
-            }
-        }
-
-        function sendTextMessage() {
-            const input = document.getElementById("message-input");
-            const text = input.value.trim();
-            if (!text) return;
-
-            const msgPacket = { id: myId, name: myName, avatar: myAvatar, region: myRegion, device: myDevice, type: "text", content: text, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
-            mqttClient.publish(`lobby/${ROOM_ID}/chat`, JSON.stringify(msgPacket));
-            input.value = "";
-        }
-
-        function compressAndSendImage(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const img = new Image();
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 450; 
-                    let width = img.width;
-                    let height = img.height;
-
-                    if (width > MAX_WIDTH) {
-                        height *= MAX_WIDTH / width;
-                        width = MAX_WIDTH;
-                    }
-                    canvas.width = width;
-                    canvas.height = height;
-
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-                    const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6); 
-
-                    const msgPacket = { id: myId, name: myName, avatar: myAvatar, region: myRegion, device: myDevice, type: "image", content: compressedBase64, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
-                    mqttClient.publish(`lobby/${ROOM_ID}/chat`, JSON.stringify(msgPacket));
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function displayMessage(msg) {
-            const chatZone = document.getElementById("chat-messages");
-            const msgRow = document.createElement("div");
-            msgRow.className = "flex items-start gap-3 hover:bg-dcBgDark/20 p-1 px-1.5 rounded-lg transition";
-
-            let contentHtml = "";
-            if (msg.type === "text") {
-                contentHtml = `<p class="text-[#dbdee1] text-[13px] sm:text-sm break-all mt-0.5 leading-relaxed">${escapeHtml(msg.content)}</p>`;
-            } else if (msg.type === "image") {
-                contentHtml = `<img src="${msg.content}" class="max-w-[180px] sm:max-w-xs max-h-40 rounded-xl border border-dcBgDark mt-1 object-contain shadow-sm" onclick="window.open(this.src)">`;
-            }
-
-            msgRow.innerHTML = `
-                <img src="${msg.avatar}" class="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-0.5 shadow-sm">
-                <div class="flex flex-col min-w-0">
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                        <span class="text-white font-bold text-[13px] truncate max-w-[120px]">${msg.name}</span>
-                        <span class="text-[8px] text-dcTextMuted bg-dcBgDark px-1.5 py-0.5 rounded font-mono">${msg.region}</span>
-                        <span class="text-[8px] text-dcBlurple/90 bg-dcBlurple/10 border border-dcBlurple/20 px-1 rounded font-sans font-medium">${msg.device || "未知"}</span>
-                        <span class="text-[9px] text-dcTextMuted font-light">${msg.time}</span>
-                    </div>
-                    ${contentHtml}
-                </div>
-            `;
-            chatZone.appendChild(msgRow);
-            chatZone.scrollTop = chatZone.scrollHeight; 
-        }
-
-        function escapeHtml(str) {
-            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-        }
-    </script>
-</body>
-</html>
+                    iceTransportPolicy: 'all
