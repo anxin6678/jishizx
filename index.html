@@ -420,4 +420,424 @@
                         { urls: 'stun:stun.voipbuster.com' },
                         { urls: 'stun:stun.l.google.com:19302' }
                     ],
-                    iceTransportPolicy: 'all
+                    iceTransportPolicy: 'all',
+                    iceCandidatePoolSize: 12
+                }
+            };
+
+            peer = new Peer(myId, peerConfig);
+            
+            peer.on('open', () => {
+                console.log("✨ 新 P2P 通道重构完毕，开始向大厅同步新音频状态...");
+                // 广播更新状态，触发大厅内的其余群友与我的新 Peer 实力进行重新对呼
+                const packet = { id: myId, name: myName, avatar: myAvatar, region: myRegion, device: myDevice, isMuted: isMuted, timestamp: Date.now() };
+                mqttClient.publish(`lobby/${ROOM_ID}/presence`, JSON.stringify(packet));
+            });
+
+            peer.on('call', (call) => {
+                call.answer(localStream);
+                handleIncomingCall(call);
+            });
+
+            // 向界面瀑布流注入小提示通知用户
+            const chatZone = document.getElementById("chat-messages");
+            const hintRow = document.createElement("div");
+            hintRow.className = "text-center text-[10px] text-dcRed bg-dcRed/5 py-1.5 rounded-lg border border-dcRed/10 font-medium my-1";
+            hintRow.innerText = "🔧 你已执行『一键音频网络热重置』，语音链路已在后台秘密重连。";
+            chatZone.appendChild(hintRow);
+            chatZone.scrollTop = chatZone.scrollHeight;
+        }
+
+        function initIOSAudioUnlocker() {
+            const unlockHandler = () => {
+                const audios = document.querySelectorAll('#remote-audios audio');
+                audios.forEach(audio => {
+                    if (audio.paused) audio.play().catch(() => {});
+                });
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) {
+                    const tempCtx = new AudioContext();
+                    if (tempCtx.state === 'suspended') tempCtx.resume();
+                }
+            };
+            document.body.addEventListener('click', unlockHandler);
+            document.body.addEventListener('touchstart', unlockHandler);
+        }
+
+        function handleCustomAvatarUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const SIZE = 120; 
+                    canvas.width = SIZE;
+                    canvas.height = SIZE;
+
+                    const ctx = canvas.getContext('2d');
+                    let srcX = 0, srcY = 0, srcW = img.width, srcH = img.height;
+                    if (img.width > img.height) {
+                        srcW = img.height;
+                        srcX = (img.width - img.height) / 2;
+                    } else {
+                        srcH = img.width;
+                        srcY = (img.height - img.width) / 2;
+                    }
+                    ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, SIZE, SIZE);
+                    
+                    myAvatar = canvas.toDataURL('image/jpeg', 0.7);
+                    document.getElementById("preview-avatar").src = myAvatar;
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function initAppDrawerInteractions() {
+            const leftDrawer = document.getElementById("left-drawer");
+            const rightDrawer = document.getElementById("right-drawer");
+            const backdrop = document.getElementById("sidebar-backdrop");
+
+            const menuBtn = document.getElementById("menu-toggle-btn");
+            const membersBtn = document.getElementById("members-toggle-btn");
+            const navHomeBtn = document.getElementById("nav-home-btn");
+
+            function hideAllDrawers() {
+                leftDrawer.classList.add("-translate-x-full");
+                rightDrawer.classList.add("translate-x-full");
+                backdrop.classList.add("hidden");
+            }
+
+            const openLeft = (e) => {
+                e.stopPropagation();
+                rightDrawer.classList.add("translate-x-full");
+                leftDrawer.classList.toggle("-translate-x-full");
+                backdrop.classList.toggle("hidden", leftDrawer.classList.contains("-translate-x-full"));
+            };
+            menuBtn.addEventListener("click", openLeft);
+            navHomeBtn.addEventListener("click", openLeft);
+
+            membersBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                leftDrawer.classList.add("-translate-x-full");
+                rightDrawer.classList.toggle("translate-x-full");
+                backdrop.classList.toggle("hidden", rightDrawer.classList.contains("translate-x-full"));
+            });
+
+            backdrop.addEventListener("click", hideAllDrawers);
+            document.getElementById("chat-messages").addEventListener("click", () => {
+                hideAllDrawers();
+                document.getElementById("emoji-picker").classList.add("hidden");
+            });
+        }
+
+        function detectRegion() {
+            fetch('https://api.db-ip.com/v2/free/self')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.city || data.province || data.countryName) {
+                        myRegion = data.city || data.province || data.countryName;
+                    }
+                })
+                .catch(() => { myRegion = "中国大陆"; });
+        }
+
+        function initEmojiPicker() {
+            const grid = document.getElementById("emoji-grid");
+            wechatEmojis.forEach(emoji => {
+                const span = document.createElement("span");
+                span.innerText = emoji;
+                span.className = "cursor-pointer p-2 hover:bg-dcInput text-center transition select-none active:bg-gray-800 rounded-xl";
+                span.onclick = (e) => {
+                    e.stopPropagation();
+                    document.getElementById("message-input").value += emoji;
+                    document.getElementById("emoji-picker").classList.add("hidden");
+                };
+                grid.appendChild(span);
+            });
+        }
+
+        async function startMediaAndConnect() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
+                    video: false 
+                });
+                
+                setInterval(() => {
+                    if (localStream && !isMuted) {
+                        const track = localStream.getAudioTracks()[0];
+                        if (track && (track.muted || track.readyState === 'ended')) {
+                            navigator.mediaDevices.getUserMedia({ audio: true }).then(newStream => {
+                                localStream = newStream;
+                                for (let peerId in activePeers) {
+                                    if(peer && peer.connections[peerId]) {
+                                        const sender = peer.connections[peerId][0].peerConnection.getSenders()[0];
+                                        if(sender) sender.replaceTrack(newStream.getAudioTracks()[0]);
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }, 5000);
+
+            } catch (err) {
+                console.warn("麦克风限制", err);
+                updateMuteUI(true);
+                isMuted = true;
+            }
+
+            const peerConfig = {
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.sipgate.net:3478' },
+                        { urls: 'stun:stun.nextcloud.com:443' },
+                        { urls: 'stun:stun.stunprotocol.org:3478' },
+                        { urls: 'stun:stun.anyfirewall.com:3478' },
+                        { urls: 'stun:stun.voipbuster.com' },
+                        { urls: 'stun:stun.l.google.com:19302' }
+                    ],
+                    iceTransportPolicy: 'all',
+                    iceCandidatePoolSize: 10
+                }
+            };
+
+            peer = new Peer(myId, peerConfig);
+            
+            peer.on('open', () => { connectMQTT(); });
+            peer.on('call', (call) => {
+                call.answer(localStream);
+                handleIncomingCall(call);
+            });
+        }
+
+        function connectMQTT() {
+            mqttClient = mqtt.connect(MQTT_BROKER);
+            mqttClient.on("connect", () => {
+                mqttClient.subscribe(`lobby/${ROOM_ID}/chat`);
+                mqttClient.subscribe(`lobby/${ROOM_ID}/presence`);
+                startHeartbeat();
+            });
+
+            mqttClient.on("message", (topic, message) => {
+                const payload = JSON.parse(message.toString());
+                if (topic.endsWith('/chat')) {
+                    displayMessage(payload);
+                } else if (topic.endsWith('/presence')) {
+                    handlePresence(payload);
+                }
+            });
+        }
+
+        function startHeartbeat() {
+            const sendPing = () => {
+                if(!mqttClient || !mqttClient.connected) return;
+                const packet = { id: myId, name: myName, avatar: myAvatar, region: myRegion, device: myDevice, isMuted: isMuted, timestamp: Date.now() };
+                mqttClient.publish(`lobby/${ROOM_ID}/presence`, JSON.stringify(packet));
+            };
+            sendPing();
+            setInterval(sendPing, 3500); 
+            setInterval(flushDeadPeers, 9000); 
+        }
+
+        function handlePresence(peerInfo) {
+            if (peerInfo.id === myId) return;
+            if (!activePeers[peerInfo.id]) {
+                if (localStream && myId > peerInfo.id && peer && !peer.destroyed) {
+                    let call = peer.call(peerInfo.id, localStream);
+                    handleIncomingCall(call);
+                }
+            }
+            activePeers[peerInfo.id] = peerInfo;
+            renderMemberList();
+        }
+
+        function flushDeadPeers() {
+            const now = Date.now();
+            let changed = false;
+            for (let id in activePeers) {
+                if (now - activePeers[id].timestamp > 11000) { 
+                    const oldAudio = document.getElementById(`audio-${id}`);
+                    if (oldAudio) oldAudio.remove();
+                    delete activePeers[id];
+                    changed = true;
+                }
+            }
+            if (changed) renderMemberList();
+        }
+
+        function renderMemberList() {
+            const listContainer = document.getElementById("member-list");
+            listContainer.innerHTML = "";
+            listContainer.appendChild(createMemberRow(myId, myName, myAvatar, myRegion, myDevice, isMuted, true));
+            
+            let count = 1;
+            for (let id in activePeers) {
+                let p = activePeers[id];
+                listContainer.appendChild(createMemberRow(p.id, p.name, p.avatar, p.region, p.device, p.isMuted, false));
+                count++;
+            }
+            document.getElementById("member-count").innerText = count;
+        }
+
+        function createMemberRow(id, name, avatar, region, device, isPeerMuted, isSelf) {
+            const row = document.createElement("div");
+            row.className = "flex items-center justify-between p-2 hover:bg-[#35373c] rounded-xl text-xs mb-0.5 transition";
+            
+            let deviceIcon = "fa-solid fa-mobile-screen-button";
+            if(device === "Windows" || device === "Mac" || device === "Linux") deviceIcon = "fa-solid fa-desktop";
+            if(device === "iPad") deviceIcon = "fa-solid fa-tablet-screen-button";
+
+            row.innerHTML = `
+                <div class="flex items-center gap-2.5 overflow-hidden flex-1">
+                    <div class="relative flex-shrink-0">
+                        <img src="${avatar}" class="w-7 h-7 rounded-full object-cover">
+                        <div class="absolute bottom-0 right-0 w-2.5 h-2.5 ${isPeerMuted ? 'bg-dcRed':'bg-dcGreen'} rounded-full border-2 border-dcPanel"></div>
+                    </div>
+                    <div class="flex flex-col overflow-hidden flex-1">
+                        <div class="flex items-center gap-1 min-w-0">
+                            <span class="text-white font-bold truncate">${name}</span>
+                            ${isPeerMuted ? '<i class="fa-solid fa-microphone-slash text-[10px] text-dcRed flex-shrink-0 ml-1"></i>' : ''}
+                        </div>
+                        <div class="flex items-center gap-1.5 text-dcTextMuted text-[9px] truncate">
+                            <span>${region}</span>
+                            <span>•</span>
+                            <span class="flex items-center gap-0.5"><i class="${deviceIcon} text-[8px]"></i> ${device}</span>
+                        </div>
+                    </div>
+                </div>
+                ${isSelf ? '<span class="text-[9px] text-dcTextMuted bg-dcBgDark px-1.5 py-0.5 rounded-md flex-shrink-0">自己</span>' : ''}
+            `;
+            return row;
+        }
+
+        function handleIncomingCall(call) {
+            if(!call) return;
+            call.on('stream', (remoteStream) => {
+                let existingAudio = document.getElementById(`audio-${call.peer}`);
+                if (!existingAudio) {
+                    const audioEl = document.createElement('audio');
+                    audioEl.id = `audio-${call.peer}`;
+                    audioEl.srcObject = remoteStream;
+                    
+                    audioEl.setAttribute('autoplay', 'true');
+                    audioEl.setAttribute('playsinline', 'true');
+                    audioEl.controls = false;
+                    
+                    document.getElementById('remote-audios').appendChild(audioEl);
+                    audioEl.play().catch(() => {});
+                }
+            });
+        }
+
+        function toggleLocalMic() {
+            if (!localStream) return;
+            let audioTrack = localStream.getAudioTracks()[0];
+            if (audioTrack) {
+                isMuted = !isMuted;
+                audioTrack.enabled = !isMuted;
+                updateMuteUI(isMuted);
+                
+                const packet = { id: myId, name: myName, avatar: myAvatar, region: myRegion, device: myDevice, isMuted: isMuted, timestamp: Date.now() };
+                mqttClient.publish(`lobby/${ROOM_ID}/presence`, JSON.stringify(packet));
+                renderMemberList(); 
+            }
+        }
+
+        function updateMuteUI(muted) {
+            const dMicIcon = document.getElementById("drawer-mic-icon");
+            const navIndicator = document.getElementById("nav-status-indicator");
+            const navTag = document.getElementById("nav-profile-tag");
+            
+            if (muted) {
+                dMicIcon.className = "fa-solid fa-microphone-slash text-dcRed";
+                navIndicator.className = "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-dcRed rounded-full border-2 border-dcNav";
+                navTag.innerText = "已静音";
+                navTag.className = "text-[9px] text-dcRed scale-90 mt-0.5 font-bold";
+            } else {
+                dMicIcon.className = "fa-solid fa-microphone text-xs text-white";
+                navIndicator.className = "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-dcGreen rounded-full border-2 border-dcNav";
+                navTag.innerText = "讲话中";
+                navTag.className = "text-[9px] text-dcTextMuted scale-90 mt-0.5 font-medium";
+            }
+        }
+
+        function sendTextMessage() {
+            const input = document.getElementById("message-input");
+            const text = input.value.trim();
+            if (!text) return;
+
+            const msgPacket = { id: myId, name: myName, avatar: myAvatar, region: myRegion, device: myDevice, type: "text", content: text, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
+            mqttClient.publish(`lobby/${ROOM_ID}/chat`, JSON.stringify(msgPacket));
+            input.value = "";
+        }
+
+        function compressAndSendImage(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 450; 
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6); 
+
+                    const msgPacket = { id: myId, name: myName, avatar: myAvatar, region: myRegion, device: myDevice, type: "image", content: compressedBase64, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) };
+                    mqttClient.publish(`lobby/${ROOM_ID}/chat`, JSON.stringify(msgPacket));
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function displayMessage(msg) {
+            const chatZone = document.getElementById("chat-messages");
+            const msgRow = document.createElement("div");
+            msgRow.className = "flex items-start gap-3 hover:bg-dcBgDark/20 p-1 px-1.5 rounded-lg transition";
+
+            let contentHtml = "";
+            if (msg.type === "text") {
+                contentHtml = `<p class="text-[#dbdee1] text-[13px] sm:text-sm break-all mt-0.5 leading-relaxed">${escapeHtml(msg.content)}</p>`;
+            } else if (msg.type === "image") {
+                contentHtml = `<img src="${msg.content}" class="max-w-[180px] sm:max-w-xs max-h-40 rounded-xl border border-dcBgDark mt-1 object-contain shadow-sm" onclick="window.open(this.src)">`;
+            }
+
+            msgRow.innerHTML = `
+                <img src="${msg.avatar}" class="w-8 h-8 rounded-full object-cover flex-shrink-0 mt-0.5 shadow-sm">
+                <div class="flex flex-col min-w-0">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="text-white font-bold text-[13px] truncate max-w-[120px]">${msg.name}</span>
+                        <span class="text-[8px] text-dcTextMuted bg-dcBgDark px-1.5 py-0.5 rounded font-mono">${msg.region}</span>
+                        <span class="text-[8px] text-dcBlurple/90 bg-dcBlurple/10 border border-dcBlurple/20 px-1 rounded font-sans font-medium">${msg.device || "未知"}</span>
+                        <span class="text-[9px] text-dcTextMuted font-light">${msg.time}</span>
+                    </div>
+                    ${contentHtml}
+                </div>
+            `;
+            chatZone.appendChild(msgRow);
+            chatZone.scrollTop = chatZone.scrollHeight; 
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+    </script>
+</body>
+</html>
