@@ -3,721 +3,167 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Telegram Web</title>
+  <title>P2P 极简加密私聊</title>
   <style>
-    :root {
-      --bg-main: #0f1721;
-      --bg-sidebar: #17212b;
-      --bg-header: #17212b;
-      --bg-input: #242f3d;
-      --bg-hover: #202b36;
-      --bg-active: #2b5278;
-      --accent: #3390ec;
-      --accent-hover: #2f81d4;
-      --bubble-in: #182533;
-      --bubble-out: #2b5278;
-      --text-main: #f5f5f5;
-      --text-muted: #7f91a4;
-      --border-color: #0e1621;
-      --online: #00c853;
-      --danger: #e53935;
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; user-select: none; }
-    body, html { height: 100%; width: 100%; background-color: var(--bg-main); color: var(--text-main); overflow: hidden; }
-
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
-
-    /* --- Modals & Overlays --- */
-    .overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 1; transition: opacity 0.2s; }
-    .overlay.hidden { display: none; opacity: 0; }
-    .modal { background: var(--bg-sidebar); padding: 28px; border-radius: 16px; width: 380px; box-shadow: 0 12px 32px rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.05); }
-    .modal h2 { margin-bottom: 20px; font-size: 20px; font-weight: 600; text-align: center; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 10px; }
+    .chat-card { width: 100%; max-width: 480px; height: 90vh; max-height: 680px; background: #1e293b; border-radius: 16px; border: 1px solid #334155; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
     
-    .input-group { margin-bottom: 14px; }
-    .input-group label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
-    .field { width: 100%; padding: 12px 14px; background: var(--bg-input); border: 1px solid transparent; border-radius: 10px; color: #fff; font-size: 14px; outline: none; transition: border-color 0.2s; }
-    .field:focus { border-color: var(--accent); }
+    .header { padding: 16px; background: #0f172a; border-bottom: 1px solid #334155; text-align: center; }
+    .header h2 { font-size: 1.1rem; color: #38bdf8; margin-bottom: 8px; }
+    .my-id-box { display: inline-flex; align-items: center; gap: 8px; background: #1e293b; padding: 6px 12px; border-radius: 20px; border: 1px solid #334155; font-size: 0.85rem; }
+    .my-id-box code { color: #f43f5e; font-weight: bold; user-select: all; }
+    .copy-btn { background: #334155; border: none; color: #f8fafc; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
 
-    .btn-primary { width: 100%; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; margin-top: 8px; }
-    .btn-primary:hover { background: var(--accent-hover); }
-    .btn-link { width: 100%; padding: 10px; background: transparent; color: var(--accent); border: none; font-size: 13px; cursor: pointer; margin-top: 6px; }
-
-    /* Checklist for Group Members */
-    .checklist { max-height: 200px; overflow-y: auto; margin: 12px 0; display: flex; flex-direction: column; gap: 6px; }
-    .check-item { display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--bg-input); border-radius: 8px; cursor: pointer; font-size: 14px; }
-    .check-item input { accent-color: var(--accent); width: 16px; height: 16px; }
-
-    /* --- Side Drawer (Menu) --- */
-    .drawer-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 500; display: none; }
-    .drawer { position: fixed; top: 0; left: -300px; width: 280px; height: 100vh; background: var(--bg-sidebar); z-index: 501; transition: left 0.25s ease; display: flex; flex-direction: column; border-right: 1px solid var(--border-color); }
-    .drawer.open { left: 0; }
-    .drawer-header { padding: 24px 20px; background: var(--bg-input); display: flex; flex-direction: column; gap: 12px; }
-    .drawer-avatar { width: 60px; height: 60px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; color: white; }
-    .drawer-user-info .name { font-size: 16px; font-weight: 600; }
-    .drawer-user-info .username { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
-    .drawer-menu { flex: 1; padding: 12px 0; display: flex; flex-direction: column; }
-    .drawer-item { padding: 14px 20px; display: flex; align-items: center; gap: 16px; font-size: 14px; cursor: pointer; color: var(--text-main); transition: background 0.15s; }
-    .drawer-item:hover { background: var(--bg-hover); }
-    .drawer-item svg { fill: var(--text-muted); width: 20px; height: 20px; }
-
-    /* --- App Main Layout --- */
-    .app { display: flex; width: 100vw; height: 100vh; }
-
-    /* Left Sidebar */
-    .sidebar { width: 360px; background: var(--bg-sidebar); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; position: relative; flex-shrink: 0; }
-    .sidebar-header { padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
-    .icon-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; transition: background 0.15s, color 0.15s; }
-    .icon-btn:hover { background: var(--bg-hover); color: var(--text-main); }
+    .connect-bar { display: flex; gap: 8px; padding: 12px; background: #0f172a; border-bottom: 1px solid #334155; }
+    .connect-bar input { flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: #fff; font-size: 0.85rem; outline: none; }
+    .connect-bar button { background: #0284c7; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: bold; }
     
-    .search-bar { flex: 1; position: relative; }
-    .search-bar input { width: 100%; padding: 9px 12px 9px 36px; background: var(--bg-input); border: none; border-radius: 22px; color: #fff; font-size: 13.5px; outline: none; }
-    .search-bar svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); fill: var(--text-muted); width: 16px; height: 16px; }
+    .status-tag { padding: 6px; text-align: center; font-size: 0.75rem; background: #334155; color: #94a3b8; transition: all 0.3s; }
+    .status-tag.online { background: #065f46; color: #34d399; }
 
-    /* Tabs Filter */
-    .tabs { display: flex; border-bottom: 1px solid var(--border-color); background: var(--bg-sidebar); }
-    .tab-btn { flex: 1; padding: 10px 0; text-align: center; font-size: 13px; font-weight: 500; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
-    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .messages-box { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    .msg { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; line-height: 1.4; word-break: break-word; }
+    .msg.me { align-self: flex-end; background: #0284c7; color: #fff; border-bottom-right-radius: 2px; }
+    .msg.peer { align-self: flex-start; background: #334155; color: #f8fafc; border-bottom-left-radius: 2px; }
+    .msg.system { align-self: center; background: transparent; color: #64748b; font-size: 0.75rem; }
 
-    .chat-list { flex: 1; overflow-y: auto; }
-    .section-title { padding: 10px 16px 4px 16px; font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
-    .chat-item { display: flex; align-items: center; padding: 10px 14px; cursor: pointer; gap: 12px; transition: background 0.15s; position: relative; }
-    .chat-item:hover { background: var(--bg-hover); }
-    .chat-item.active { background: var(--bg-active); }
-    
-    .avatar { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 17px; flex-shrink: 0; color: #fff; position: relative; }
-    .online-badge { position: absolute; bottom: 1px; right: 1px; width: 11px; height: 11px; background: var(--online); border: 2px solid var(--bg-sidebar); border-radius: 50%; }
-
-    .chat-info { flex: 1; overflow: hidden; }
-    .chat-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-    .chat-name { font-weight: 600; font-size: 14.5px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .chat-time { font-size: 11.5px; color: var(--text-muted); }
-    .chat-bottom { display: flex; justify-content: space-between; align-items: center; }
-    .chat-preview { font-size: 13px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
-    .unread-badge { background: var(--accent); color: white; font-size: 11px; font-weight: bold; padding: 2px 7px; border-radius: 10px; margin-left: 6px; }
-
-    /* Floating Action Button */
-    .fab { position: absolute; bottom: 20px; right: 20px; width: 52px; height: 52px; border-radius: 50%; background: var(--accent); color: white; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(0,0,0,0.4); transition: transform 0.2s, background 0.2s; }
-    .fab:hover { transform: scale(1.05); background: var(--accent-hover); }
-
-    /* Right Main Chat Area */
-    .chat-viewport { flex: 1; display: flex; flex-direction: column; background: var(--bg-main); position: relative; }
-    .chat-header { height: 56px; background: var(--bg-header); padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); }
-    .chat-header-user { display: flex; align-items: center; gap: 12px; cursor: pointer; }
-    .header-title { font-size: 15.5px; font-weight: 600; }
-    .header-status { font-size: 12px; color: var(--text-muted); }
-
-    .message-container { flex: 1; padding: 20px 16%; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 0); background-size: 24px 24px; }
-    
-    .message { max-width: 65%; padding: 8px 12px; border-radius: 12px; font-size: 14px; line-height: 1.45; word-break: break-word; position: relative; user-select: text; }
-    .message.incoming { background: var(--bubble-in); align-self: flex-start; border-bottom-left-radius: 3px; }
-    .message.outgoing { background: var(--bubble-out); align-self: flex-end; border-bottom-right-radius: 3px; }
-    .msg-sender { font-size: 12px; font-weight: 600; color: var(--accent); margin-bottom: 3px; }
-    .msg-img { max-width: 100%; border-radius: 8px; margin-top: 4px; display: block; cursor: pointer; }
-    .msg-footer { display: flex; align-items: center; justify-content: flex-end; gap: 4px; float: right; margin-top: 4px; margin-left: 12px; }
-    .msg-time { font-size: 10.5px; color: var(--text-muted); }
-    .msg-ticks { fill: var(--accent); width: 14px; height: 14px; }
-
-    /* Reactions */
-    .reactions-bar { display: flex; gap: 4px; margin-top: 4px; }
-    .reaction-badge { background: rgba(0,0,0,0.3); border-radius: 10px; padding: 2px 6px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 2px; }
-
-    /* Input Footer */
-    .input-container { padding: 12px 16%; background: var(--bg-header); display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--border-color); position: relative; }
-    .msg-input { flex: 1; padding: 12px 16px; background: var(--bg-input); border: none; border-radius: 22px; color: #fff; font-size: 14.5px; outline: none; user-select: text; }
-    .send-btn { background: var(--accent); border: none; color: white; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s; flex-shrink: 0; }
-    .send-btn:hover { background: var(--accent-hover); }
-
-    /* Emoji Popover */
-    .emoji-picker { position: absolute; bottom: 70px; right: 20%; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 12px; padding: 10px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 100; }
-    .emoji-picker.hidden { display: none; }
-    .emoji-item { font-size: 20px; text-align: center; cursor: pointer; padding: 4px; border-radius: 6px; }
-    .emoji-item:hover { background: var(--bg-hover); }
-
-    /* Image Preview Modal */
-    .img-modal { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 2000; display: flex; align-items: center; justify-content: center; }
-    .img-modal img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
-
-    /* Empty state */
-    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); font-size: 14px; gap: 12px; }
-    .empty-badge { background: var(--bg-input); padding: 8px 16px; border-radius: 20px; }
+    .input-bar { display: flex; padding: 12px; background: #0f172a; gap: 8px; border-top: 1px solid #334155; }
+    .input-bar input { flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid #334155; background: #1e293b; color: #fff; outline: none; }
+    .input-bar button { background: #0284c7; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+    .input-bar button:disabled { background: #334155; cursor: not-allowed; opacity: 0.6; }
   </style>
+  
+  <!-- 引入 PeerJS 官方 CDN -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
 
-  <!-- 1. 登录 / 注册 弹窗 -->
-  <div class="overlay" id="authModal">
-    <div class="modal">
-      <h2 id="authTitle">登录 Telegram</h2>
-      <div class="input-group">
-        <label>用户名 (Username)</label>
-        <input type="text" id="authUsername" class="field" placeholder="输入用户名...">
-      </div>
-      <div class="input-group">
-        <label>密码 (Password)</label>
-        <input type="password" id="authPassword" class="field" placeholder="输入密码...">
-      </div>
-      <button class="btn-primary" id="authSubmitBtn" onclick="handleAuth()">登录</button>
-      <button class="btn-link" id="authToggleBtn" onclick="toggleAuthMode()">没有账号？点击注册</button>
-    </div>
-  </div>
-
-  <!-- 2. 拉群 弹窗 -->
-  <div class="overlay hidden" id="groupModal">
-    <div class="modal">
-      <h2>创建新群组</h2>
-      <div class="input-group">
-        <label>群组名称</label>
-        <input type="text" id="groupNameInput" class="field" placeholder="例如：极客交流群">
-      </div>
-      <label style="font-size: 12px; color: var(--text-muted);">选择已注册的联系人：</label>
-      <div class="checklist" id="userChecklist"></div>
-      <button class="btn-primary" onclick="createGroup()">立即创建</button>
-      <button class="btn-link" style="color: var(--text-muted);" onclick="closeModal('groupModal')">取消</button>
-    </div>
-  </div>
-
-  <!-- 3. 图片放大弹窗 -->
-  <div class="img-modal hidden" id="imgModal" onclick="this.classList.add('hidden')">
-    <img id="imgModalTarget" src="" alt="preview">
-  </div>
-
-  <!-- 4. 侧边抽屉菜单 -->
-  <div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
-  <div class="drawer" id="drawer">
-    <div class="drawer-header">
-      <div class="drawer-avatar" id="drawerAvatar">U</div>
-      <div class="drawer-user-info">
-        <div class="name" id="drawerName">User</div>
-        <div class="username" id="drawerUsername">@user</div>
+  <div class="chat-card">
+    <div class="header">
+      <h2>P2P 匿名点对点私聊</h2>
+      <div class="my-id-box">
+        我的 ID: <code id="my-id">生成中...</code>
+        <button class="copy-btn" onclick="copyMyId()">复制</button>
       </div>
     </div>
-    <div class="drawer-menu">
-      <div class="drawer-item" onclick="openSavedMessages()">
-        <svg viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z"/></svg>
-        我的收藏夹 (Saved Messages)
-      </div>
-      <div class="drawer-item" onclick="closeDrawer(); openGroupModal();">
-        <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-        新建群组
-      </div>
-      <div class="drawer-item" style="color: var(--danger);" onclick="logout()">
-        <svg viewBox="0 0 24 24" style="fill: var(--danger);"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
-        退出登录
-      </div>
-    </div>
-  </div>
 
-  <!-- 5. Telegram 主应用面板 -->
-  <div class="app">
-    <!-- 左侧会话边栏 -->
-    <div class="sidebar">
-      <div class="sidebar-header">
-        <button class="icon-btn" onclick="openDrawer()" title="菜单">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
-        </button>
-        <div class="search-bar">
-          <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-          <input type="text" id="searchInput" placeholder="搜索联系人或全局用户..." oninput="onSearch(this.value)">
-        </div>
-      </div>
-
-      <!-- 分类 Tab -->
-      <div class="tabs">
-        <div class="tab-btn active" onclick="switchTab('all', this)">全部</div>
-        <div class="tab-btn" onclick="switchTab('user', this)">私聊</div>
-        <div class="tab-btn" onclick="switchTab('group', this)">群组</div>
-      </div>
-
-      <!-- 会话列表 -->
-      <div class="chat-list" id="chatList"></div>
-
-      <!-- 浮动拉群按钮 -->
-      <button class="fab" title="创建群组" onclick="openGroupModal()">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-      </button>
+    <div class="connect-bar">
+      <input type="text" id="target-id" placeholder="输入对方的 ID...">
+      <button onclick="connectToPeer()">连接对方</button>
     </div>
 
-    <!-- 右侧主聊天视口 -->
-    <div class="chat-viewport">
-      <!-- 聊天页头 -->
-      <div class="chat-header">
-        <div class="chat-header-user">
-          <div class="avatar" id="headerAvatar" style="display:none;"></div>
-          <div>
-            <div class="header-title" id="headerTitle">选择对话开始聊天</div>
-            <div class="header-status" id="headerStatus"></div>
-          </div>
-        </div>
-        <div id="currentUserBadge" style="font-size: 13px; color: var(--accent); font-weight: 500;"></div>
-      </div>
+    <div class="status-tag" id="status">未建立连接</div>
 
-      <!-- 消息显示区 -->
-      <div class="message-container" id="msgContainer">
-        <div class="empty-state">
-          <div class="empty-badge">请在左侧选择一个会话或搜索联系人</div>
-        </div>
-      </div>
+    <div class="messages-box" id="messages">
+      <div class="msg system">提示：双方必须同时打开网页才能建立连接通信</div>
+    </div>
 
-      <!-- 表情选择器 -->
-      <div class="emoji-picker hidden" id="emojiPicker">
-        <span class="emoji-item" onclick="insertEmoji('👍')">👍</span>
-        <span class="emoji-item" onclick="insertEmoji('❤️')">❤️</span>
-        <span class="emoji-item" onclick="insertEmoji('😂')">😂</span>
-        <span class="emoji-item" onclick="insertEmoji('🔥')">🔥</span>
-        <span class="emoji-item" onclick="insertEmoji('🎉')">🎉</span>
-        <span class="emoji-item" onclick="insertEmoji('👏')">👏</span>
-        <span class="emoji-item" onclick="insertEmoji('🚀')">🚀</span>
-        <span class="emoji-item" onclick="insertEmoji('💯')">💯</span>
-        <span class="emoji-item" onclick="insertEmoji('🙏')">🙏</span>
-        <span class="emoji-item" onclick="insertEmoji('😍')">😍</span>
-        <span class="emoji-item" onclick="insertEmoji('😎')">😎</span>
-        <span class="emoji-item" onclick="insertEmoji('🤔')">🤔</span>
-      </div>
-
-      <!-- 底部输入栏 -->
-      <div class="input-container">
-        <!-- 隐式文件上传 input -->
-        <input type="file" id="fileInput" accept="image/*" style="display:none;" onchange="handleFileUpload(this)">
-        
-        <button class="icon-btn" onclick="document.getElementById('fileInput').click()" title="发送图片">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4s-4 1.79-4 4v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
-        </button>
-        <button class="icon-btn" onclick="toggleEmojiPicker()" title="表情">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>
-        </button>
-        <input type="text" class="msg-input" id="msgInput" placeholder="编写消息..." onkeydown="if(event.key==='Enter') sendTextMessage()">
-        <button class="send-btn" onclick="sendTextMessage()" title="发送">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-        </button>
-      </div>
+    <div class="input-bar">
+      <input type="text" id="msg-input" placeholder="请输入消息..." disabled onkeydown="if(event.key==='Enter') sendMsg()">
+      <button id="send-btn" onclick="sendMsg()" disabled>发送</button>
     </div>
   </div>
 
   <script>
-    /* --- 核心 State --- */
-    let isLoginMode = true;
-    let currentUser = null;
-    let activeChat = null; // { id, name, type, members, avatarColor }
-    let currentTab = 'all';
-    
-    const colors = ['#e57373', '#f06292', '#ba68c8', '#9575cd', '#7986cb', '#64b5f6', '#4db6ac', '#81c784', '#ffb74d'];
+    let peer = null;
+    let conn = null;
 
-    window.onload = function() {
-      const savedUser = localStorage.getItem('tg_active_user');
-      if (savedUser) {
-        currentUser = savedUser;
-        initApp();
-      }
-    };
+    const myIdEl = document.getElementById('my-id');
+    const statusEl = document.getElementById('status');
+    const messagesEl = document.getElementById('messages');
+    const msgInput = document.getElementById('msg-input');
+    const sendBtn = document.getElementById('send-btn');
 
-    /* --- Auth 逻辑 --- */
-    function toggleAuthMode() {
-      isLoginMode = !isLoginMode;
-      document.getElementById('authTitle').innerText = isLoginMode ? '登录 Telegram' : '注册 Telegram';
-      document.getElementById('authSubmitBtn').innerText = isLoginMode ? '登录' : '创建账号';
-      document.getElementById('authToggleBtn').innerText = isLoginMode ? '没有账号？点击注册' : '已有账号？点击登录';
-    }
+    // 1. 初始化 PeerJS（生成随机 6 位 ID 以便手动输入）
+    const customId = Math.random().toString(36).substring(2, 8);
+    peer = new Peer(customId);
 
-    function handleAuth() {
-      const user = document.getElementById('authUsername').value.trim();
-      const pass = document.getElementById('authPassword').value.trim();
-      if (!user || !pass) return alert('请输入完整信息');
+    // 监听 Peer 初始化完成，获取本地 ID
+    peer.on('open', (id) => {
+      myIdEl.innerText = id;
+    });
 
-      const users = JSON.parse(localStorage.getItem('tg_users') || '{}');
-
-      if (isLoginMode) {
-        if (users[user] && users[user].password === pass) {
-          currentUser = user;
-          localStorage.setItem('tg_active_user', user);
-          initApp();
-        } else {
-          alert('用户名或密码错误！');
-        }
-      } else {
-        if (users[user]) return alert('用户名已存在！');
-        users[user] = { password: pass, avatarColor: colors[Math.floor(Math.random() * colors.length)] };
-        localStorage.setItem('tg_users', JSON.stringify(users));
-        currentUser = user;
-        localStorage.setItem('tg_active_user', user);
-        alert('注册成功！');
-        initApp();
-      }
-    }
-
-    function logout() {
-      localStorage.removeItem('tg_active_user');
-      location.reload();
-    }
-
-    function initApp() {
-      document.getElementById('authModal').classList.add('hidden');
-      document.getElementById('currentUserBadge').innerText = '@' + currentUser;
-      document.getElementById('drawerName').innerText = currentUser;
-      document.getElementById('drawerUsername').innerText = '@' + currentUser;
-      document.getElementById('drawerAvatar').innerText = currentUser.substring(0,1).toUpperCase();
-
-      ensureDefaultChats();
-      renderChatList();
-    }
-
-    /* --- 侧边抽屉控制 --- */
-    function openDrawer() {
-      document.getElementById('drawerOverlay').style.display = 'block';
-      document.getElementById('drawer').classList.add('open');
-    }
-    function closeDrawer() {
-      document.getElementById('drawerOverlay').style.display = 'none';
-      document.getElementById('drawer').classList.remove('open');
-    }
-
-    /* --- 数据持久化层 --- */
-    function ensureDefaultChats() {
-      let chats = getChats();
-      if (chats.length === 0) {
-        chats = [
-          { id: 'tg_official', name: 'Telegram 官方通知', type: 'system', avatarColor: '#3390ec' },
-          { id: 'saved_messages', name: '我的收藏夹', type: 'saved', avatarColor: '#4682b4' }
-        ];
-        saveChats(chats);
-      }
-    }
-
-    function getChats() {
-      return JSON.parse(localStorage.getItem('tg_chats_' + currentUser) || '[]');
-    }
-
-    function saveChats(chats) {
-      localStorage.setItem('tg_chats_' + currentUser, JSON.stringify(chats));
-    }
-
-    function openSavedMessages() {
-      closeDrawer();
-      const chats = getChats();
-      const savedChat = chats.find(c => c.id === 'saved_messages');
-      if (savedChat) selectChat(savedChat);
-    }
-
-    /* --- 搜索 & Tab 切换 --- */
-    function switchTab(tab, el) {
-      currentTab = tab;
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      el.classList.add('active');
-      renderChatList();
-    }
-
-    function onSearch(val) {
-      const q = val.trim().toLowerCase();
-      if (!q) return renderChatList();
-
-      const chatListEl = document.getElementById('chatList');
-      chatListEl.innerHTML = '';
-
-      // 1. 本地已有会话
-      const matchedLocal = getChats().filter(c => c.name.toLowerCase().includes(q));
-      if (matchedLocal.length > 0) {
-        appendTitle(chatListEl, '已有会话');
-        matchedLocal.forEach(c => chatListEl.appendChild(createChatDOM(c)));
-      }
-
-      // 2. 全局注册用户
-      const allUsers = JSON.parse(localStorage.getItem('tg_users') || '{}');
-      const matchedUsers = Object.keys(allUsers).filter(u => u !== currentUser && u.toLowerCase().includes(q));
-
-      if (matchedUsers.length > 0) {
-        appendTitle(chatListEl, '全局用户 (点击直接发起聊天)');
-        matchedUsers.forEach(u => {
-          const chatObj = { id: 'user_' + u, name: u, type: 'user', targetUser: u, avatarColor: allUsers[u].avatarColor || '#3390ec' };
-          chatListEl.appendChild(createChatDOM(chatObj, true));
-        });
-      }
-    }
-
-    function appendTitle(parent, text) {
-      const div = document.createElement('div');
-      div.className = 'section-title';
-      div.innerText = text;
-      parent.appendChild(div);
-    }
-
-    /* --- 渲染会话列表 --- */
-    function renderChatList() {
-      const chatListEl = document.getElementById('chatList');
-      chatListEl.innerHTML = '';
-
-      let chats = getChats();
-      if (currentTab === 'user') chats = chats.filter(c => c.type === 'user' || c.type === 'saved');
-      if (currentTab === 'group') chats = chats.filter(c => c.type === 'group');
-
-      chats.forEach(c => chatListEl.appendChild(createChatDOM(c)));
-    }
-
-    function createChatDOM(chatObj, isGlobalSearch = false) {
-      const div = document.createElement('div');
-      div.className = 'chat-item' + (activeChat && activeChat.id === chatObj.id ? ' active' : '');
-      
-      const avatarText = chatObj.type === 'saved' ? '🔖' : chatObj.name.substring(0, 1).toUpperCase();
-      const msgs = JSON.parse(localStorage.getItem('tg_msgs_' + chatObj.id) || '[]');
-      const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1] : null;
-
-      div.innerHTML = `
-        <div class="avatar" style="background:${chatObj.avatarColor || '#3390ec'}">
-          ${avatarText}
-          ${chatObj.type === 'user' ? '<div class="online-badge"></div>' : ''}
-        </div>
-        <div class="chat-info">
-          <div class="chat-top">
-            <span class="chat-name">${escapeHtml(chatObj.name)}</span>
-            <span class="chat-time">${lastMsg ? lastMsg.time : ''}</span>
-          </div>
-          <div class="chat-bottom">
-            <span class="chat-preview">${lastMsg ? (lastMsg.image ? '[图片]' : escapeHtml(lastMsg.text)) : (isGlobalSearch ? '点击发起聊天' : '暂无消息')}</span>
-          </div>
-        </div>
-      `;
-
-      div.onclick = () => {
-        if (isGlobalSearch) {
-          let chats = getChats();
-          if (!chats.find(c => c.id === chatObj.id)) {
-            chats.push(chatObj);
-            saveChats(chats);
-          }
-        }
-        selectChat(chatObj);
-      };
-
-      return div;
-    }
-
-    function selectChat(chatObj) {
-      activeChat = chatObj;
-      renderChatList();
-
-      const headerAvatar = document.getElementById('headerAvatar');
-      headerAvatar.style.display = 'flex';
-      headerAvatar.style.background = chatObj.avatarColor || '#3390ec';
-      headerAvatar.innerText = chatObj.type === 'saved' ? '🔖' : chatObj.name.substring(0, 1).toUpperCase();
-
-      document.getElementById('headerTitle').innerText = chatObj.name;
-      
-      if (chatObj.type === 'group') {
-        const count = chatObj.members ? chatObj.members.length : 1;
-        document.getElementById('headerStatus').innerText = `${count} 位成员 (${chatObj.members.join(', ')})`;
-      } else if (chatObj.type === 'saved') {
-        document.getElementById('headerStatus').innerText = '你的备忘录与云存储';
-      } else {
-        document.getElementById('headerStatus').innerText = chatObj.type === 'system' ? '官方频道' : '在线';
-      }
-
-      loadMessages();
-    }
-
-    /* --- 弹窗控制 --- */
-    function openGroupModal() {
-      const users = JSON.parse(localStorage.getItem('tg_users') || '{}');
-      const otherUsers = Object.keys(users).filter(u => u !== currentUser);
-
-      const checklistEl = document.getElementById('userChecklist');
-      checklistEl.innerHTML = '';
-
-      if (otherUsers.length === 0) {
-        checklistEl.innerHTML = '<div style="font-size:12px; color:var(--text-muted); padding:10px 0;">暂无其他注册账号，请先开启隐身窗口注册新账号测试！</div>';
-      } else {
-        otherUsers.forEach(u => {
-          const item = document.createElement('label');
-          item.className = 'check-item';
-          item.innerHTML = `<input type="checkbox" value="${u}"> <span>@${escapeHtml(u)}</span>`;
-          checklistEl.appendChild(item);
-        });
-      }
-
-      document.getElementById('groupModal').classList.remove('hidden');
-    }
-
-    function closeModal(id) {
-      document.getElementById(id).classList.add('hidden');
-    }
-
-    function createGroup() {
-      const name = document.getElementById('groupNameInput').value.trim();
-      if (!name) return alert('请输入群组名称');
-
-      const checkboxes = document.querySelectorAll('#userChecklist input[type="checkbox"]:checked');
-      const members = Array.from(checkboxes).map(cb => cb.value);
-      members.push(currentUser);
-
-      const groupId = 'group_' + Date.now();
-      const groupObj = {
-        id: groupId,
-        name: name,
-        type: 'group',
-        members: members,
-        avatarColor: colors[Math.floor(Math.random() * colors.length)]
-      };
-
-      // 保存到当前用户
-      let chats = getChats();
-      chats.push(groupObj);
-      saveChats(chats);
-
-      // 同步给群成员
-      members.forEach(m => {
-        if (m !== currentUser) {
-          let mChats = JSON.parse(localStorage.getItem('tg_chats_' + m) || '[]');
-          if (!mChats.find(c => c.id === groupId)) {
-            mChats.push(groupObj);
-            localStorage.setItem('tg_chats_' + m, JSON.stringify(mChats));
-          }
-        }
-      });
-
-      closeModal('groupModal');
-      document.getElementById('groupNameInput').value = '';
-      selectChat(groupObj);
-    }
-
-    /* --- 消息收发与渲染 --- */
-    function loadMessages() {
-      if (!activeChat) return;
-      const container = document.getElementById('msgContainer');
-      container.innerHTML = '';
-
-      const msgs = JSON.parse(localStorage.getItem('tg_msgs_' + activeChat.id) || '[]');
-      
-      if (msgs.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-badge">暂无消息，发送一条消息开始聊天吧</div></div>';
+    // 监听来自对方的入站连接 (被动连接)
+    peer.on('connection', (incomingConn) => {
+      if (conn) {
+        incomingConn.close(); // 限制仅支持 1v1 私聊
         return;
       }
+      conn = incomingConn;
+      setupConnectionEvents();
+    });
 
-      msgs.forEach((m, idx) => {
-        const isOut = m.sender === currentUser;
-        const msgDiv = document.createElement('div');
-        msgDiv.className = 'message ' + (isOut ? 'outgoing' : 'incoming');
+    peer.on('error', (err) => {
+      appendSystemMsg(`错误: ${err.type}`);
+    });
 
-        let senderHTML = (!isOut && activeChat.type === 'group') ? `<div class="msg-sender">@${escapeHtml(m.sender)}</div>` : '';
-        let imgHTML = m.image ? `<img class="msg-img" src="${m.image}" onclick="viewImage('${m.image}')">` : '';
-        let textHTML = m.text ? `<div>${escapeHtml(m.text)}</div>` : '';
-        
-        let reactionHTML = '';
-        if (m.reactions && Object.keys(m.reactions).length > 0) {
-          reactionHTML = `<div class="reactions-bar">` + 
-            Object.entries(m.reactions).map(([emoji, count]) => `<span class="reaction-badge" onclick="addReaction(${idx}, '${emoji}')">${emoji} ${count}</span>`).join('') + 
-            `</div>`;
-        }
+    // 2. 主动发起连接
+    function connectToPeer() {
+      const targetId = document.getElementById('target-id').value.trim();
+      if (!targetId) return alert('请输入对方的 ID');
+      if (targetId === peer.id) return alert('不能连接你自己');
 
-        msgDiv.innerHTML = `
-          ${senderHTML}
-          ${imgHTML}
-          ${textHTML}
-          ${reactionHTML}
-          <div class="msg-footer">
-            <span class="msg-time">${m.time}</span>
-            ${isOut ? `<svg class="msg-ticks" viewBox="0 0 24 24"><path fill="currentColor" d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.41 11.93l-1.41 1.41 5.66 5.66 12-12-1.42-1.41zM0 13.34l5.66 5.66 1.41-1.41L1.41 11.93 0 13.34z"/></svg>` : ''}
-          </div>
-        `;
+      appendSystemMsg(`正在连接到 ${targetId}...`);
+      conn = peer.connect(targetId);
+      setupConnectionEvents();
+    }
 
-        // 双击进行快捷 Reaction
-        msgDiv.ondblclick = () => addReaction(idx, '❤️');
-
-        container.appendChild(msgDiv);
+    // 3. 统一处理连接成功、接收消息、断开连接事件
+    function setupConnectionEvents() {
+      conn.on('open', () => {
+        statusEl.innerText = `已与 [${conn.peer}] 建立加密连接`;
+        statusEl.classList.add('online');
+        msgInput.disabled = false;
+        sendBtn.disabled = false;
+        appendSystemMsg('WebRTC P2P 直连成功，可以开始聊天了！');
       });
 
-      container.scrollTop = container.scrollHeight;
+      // 接收来自对方发来的数据
+      conn.on('data', (data) => {
+        appendMsg(data, 'peer');
+      });
+
+      // 连接断开
+      conn.on('close', () => {
+        statusEl.innerText = '连接已断开';
+        statusEl.classList.remove('online');
+        msgInput.disabled = true;
+        sendBtn.disabled = true;
+        appendSystemMsg('对方退出了聊天或连接已中断');
+        conn = null;
+      });
     }
 
-    function sendTextMessage() {
-      const input = document.getElementById('msgInput');
-      const text = input.value.trim();
-      if (!text) return;
-      sendMessage(text, null);
-      input.value = '';
+    // 4. 发送消息
+    function sendMsg() {
+      const text = msgInput.value.trim();
+      if (!text || !conn) return;
+
+      conn.send(text);
+      appendMsg(text, 'me');
+      msgInput.value = '';
     }
 
-    function handleFileUpload(input) {
-      const file = input.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        sendMessage('', e.target.result);
-      };
-      reader.readAsDataURL(file);
+    // UI 绘制辅助工具
+    function appendMsg(text, type) {
+      const msgDiv = document.createElement('div');
+      msgDiv.classList.add('msg', type);
+      msgDiv.innerText = text;
+      messagesEl.appendChild(msgDiv);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 
-    function sendMessage(text, imgBase64) {
-      if (!activeChat) return alert('请先选择聊天');
+    function appendSystemMsg(text) {
+      appendMsg(text, 'system');
+    }
 
-      const now = new Date();
-      const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-
-      const msgObj = {
-        sender: currentUser,
-        text: text,
-        image: imgBase64,
-        time: timeStr,
-        reactions: {}
-      };
-
-      // 1. 保存到当前 Chat 的消息列表
-      const msgs = JSON.parse(localStorage.getItem('tg_msgs_' + activeChat.id) || '[]');
-      msgs.push(msgObj);
-      localStorage.setItem('tg_msgs_' + activeChat.id, JSON.stringify(msgs));
-
-      // 2. 如果是私聊，同步给对方账户的 tg_chats 列表
-      if (activeChat.type === 'user') {
-        const targetUser = activeChat.targetUser;
-        let targetChats = JSON.parse(localStorage.getItem('tg_chats_' + targetUser) || '[]');
-        if (!targetChats.find(c => c.id === 'user_' + currentUser)) {
-          targetChats.push({
-            id: 'user_' + currentUser,
-            name: currentUser,
-            type: 'user',
-            targetUser: currentUser,
-            avatarColor: '#3390ec'
-          });
-          localStorage.setItem('tg_chats_' + targetUser, JSON.stringify(targetChats));
-        }
+    function copyMyId() {
+      const idText = myIdEl.innerText;
+      if (idText && idText !== '生成中...') {
+        navigator.clipboard.writeText(idText);
+        alert('ID 已复制到剪贴板！');
       }
-
-      loadMessages();
-      renderChatList();
-    }
-
-    function addReaction(msgIndex, emoji) {
-      const msgs = JSON.parse(localStorage.getItem('tg_msgs_' + activeChat.id) || '[]');
-      if (!msgs[msgIndex]) return;
-
-      if (!msgs[msgIndex].reactions) msgs[msgIndex].reactions = {};
-      msgs[msgIndex].reactions[emoji] = (msgs[msgIndex].reactions[emoji] || 0) + 1;
-
-      localStorage.setItem('tg_msgs_' + activeChat.id, JSON.stringify(msgs));
-      loadMessages();
-    }
-
-    /* --- 表情选择器控制 --- */
-    function toggleEmojiPicker() {
-      document.getElementById('emojiPicker').classList.toggle('hidden');
-    }
-
-    function insertEmoji(emoji) {
-      const input = document.getElementById('msgInput');
-      input.value += emoji;
-      document.getElementById('emojiPicker').classList.add('hidden');
-      input.focus();
-    }
-
-    function viewImage(src) {
-      document.getElementById('imgModalTarget').src = src;
-      document.getElementById('imgModal').classList.remove('hidden');
-    }
-
-    function escapeHtml(text) {
-      if (!text) return '';
-      return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
   </script>
 </body>
