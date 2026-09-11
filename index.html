@@ -2,110 +2,480 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Aethelgard Labs - Secure Terminal v1.04</title>
-  <!-- ARG 细节 1：在源代码注释里放置隐蔽线索 -->
-  <!-- 
-      [SECURITY NOTICE]: 
-      Emergency protocol activated. 
-      If system resets, recovery password is: "VOID-1998"
-      Do not leak this code to unauthorized users.
-  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>第五人格 Web 还原版 - Identity V Web</title>
   <style>
-    body {
-      background-color: #0d0d0d;
-      color: #00ff66;
-      font-family: 'Courier New', Courier, monospace;
-      padding: 20px;
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      height: 90vh;
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; touch-action: none; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background: #050508; font-family: sans-serif; }
+    #canvas-container { width: 100%; height: 100%; }
+
+    /* 心跳/恐惧红光特效 */
+    #heartbeat-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; opacity: 0;
+      box-shadow: inset 0 0 100px rgba(255, 0, 0, 0.85);
+      transition: opacity 0.2s ease;
     }
-    #console {
-      flex: 1;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      line-height: 1.5;
-      border: 1px solid #00ff66;
-      padding: 15px;
-      box-shadow: 0 0 15px rgba(0, 255, 102, 0.2);
+
+    /* UI 悬浮窗: 任务与状态 */
+    #hud {
+      position: absolute; top: 15px; left: 15px; color: #e0e0e0;
+      font-size: 14px; text-shadow: 1px 1px 3px #000; pointer-events: none;
     }
-    .input-line {
-      display: flex;
-      margin-top: 10px;
+    .hud-title { font-weight: bold; font-size: 16px; color: #ff3333; margin-bottom: 5px; }
+
+    /* 破译校准圈 (Skill Check) */
+    #calibration-modal {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 160px; height: 160px; border-radius: 50%;
+      border: 4px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.65);
+      display: none; align-items: center; justify-content: center; z-index: 10;
     }
-    .prompt {
-      margin-right: 10px;
+    #calibration-target {
+      position: absolute; width: 100%; height: 100%; border-radius: 50%;
+      clip-path: polygon(50% 50%, 50% 0%, 78% 0%, 78% 50%); /* 判定成功绿区 */
+      background: rgba(46, 204, 113, 0.6);
     }
-    input {
-      background: transparent;
-      border: none;
-      color: #00ff66;
-      font-family: inherit;
-      font-size: 1rem;
-      flex: 1;
-      outline: none;
+    #calibration-needle {
+      position: absolute; width: 2px; height: 75px; background: #ff3333;
+      top: 5px; transform-origin: bottom center; left: calc(50% - 1px);
     }
-    .glitch {
-      text-shadow: 2px 0 red, -2px 0 blue;
+
+    /* 移动端摇杆 Controls */
+    #joystick-container {
+      position: absolute; bottom: 30px; left: 30px; width: 120px; height: 120px;
+      background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    }
+    #joystick-knob {
+      width: 50px; height: 50px; background: rgba(255,255,255,0.4);
+      border-radius: 50%; position: absolute;
+    }
+
+    /* 交互按键 */
+    #action-btn {
+      position: absolute; bottom: 50px; right: 40px; width: 80px; height: 80px;
+      background: rgba(230, 126, 34, 0.85); border: 3px solid #fff; border-radius: 50%;
+      color: white; font-weight: bold; font-size: 16px; display: none;
+      align-items: center; justify-content: center; cursor: pointer; z-index: 5;
+      box-shadow: 0 0 15px rgba(230, 126, 34, 0.6);
+    }
+
+    /* 破译进度条 */
+    #progress-container {
+      position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%);
+      width: 250px; height: 16px; background: rgba(0,0,0,0.7);
+      border: 2px solid #888; border-radius: 8px; display: none; overflow: hidden;
+    }
+    #progress-bar { width: 0%; height: 100%; background: #2ecc71; transition: width 0.1s; }
+
+    /* 操作提示栏 */
+    #tip {
+      position: absolute; bottom: 10px; width: 100%; text-align: center;
+      color: rgba(255,255,255,0.6); font-size: 12px; pointer-events: none;
     }
   </style>
 </head>
 <body>
 
-  <div id="console">
-[SYSTEM INITIALIZED...]
-[WARNING]: Unverified connection detected.
-Welcome to Aethelgard Research Terminal.
-Type 'help' to display available commands.
---------------------------------------------------
+  <div id="canvas-container"></div>
+  <div id="heartbeat-overlay"></div>
+
+  <div id="hud">
+    <div class="hud-title">第五人格：庄园逃脱</div>
+    <div>剩余密码机: <span id="cipher-count">5</span> / 5</div>
+    <div>求生者状态: <span id="player-status" style="color:#2ecc71">健康</span></div>
   </div>
 
-  <div class="input-line">
-    <span class="prompt">guest@aethelgard:~$</span>
-    <input type="text" id="userInput" autofocus autocomplete="off">
+  <div id="progress-container">
+    <div id="progress-bar"></div>
   </div>
 
+  <div id="calibration-modal">
+    <div id="calibration-target"></div>
+    <div id="calibration-needle"></div>
+  </div>
+
+  <div id="joystick-container">
+    <div id="joystick-knob"></div>
+  </div>
+
+  <div id="action-btn">破译</div>
+  <div id="tip">电脑控制：WASD 移动 | 鼠标拖拽视角 | E 键交互/校准 | 手机控制：左摇杆+右屏滑动</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script>
-    const output = document.getElementById('console');
-    const input = document.getElementById('userInput');
+    // --- 游戏核心机制与场景构建 ---
+    let scene, camera, renderer, player, hunter;
+    let ciphers = [];
+    let remainingCiphers = 5;
+    let playerHealth = 2; // 2: 健康, 1: 受伤, 0: 倒地
+    let isDecoding = false;
+    let currentCipher = null;
+    let decodeProgress = 0;
 
-    const commands = {
-      'help': '可用指令:\n  help    - 显示帮助菜单\n  about   - 关于实验室\n  logs    - 查看公开日志\n  access  - 尝试系统鉴权 (用法: access <password>)',
-      'about': 'Aethelgard Labs (1994-1998)\n专注于意识数字孪生研究。本项目已封存。',
-      'logs': '日志 001: 实验体 Alpha 表现异常。\n日志 002: 实验室准备撤离。\n提示：尝试检查网页的底层秘密...',
-    };
+    // QTE 校准机制变量
+    let isCalibrating = false;
+    let needleAngle = 0;
+    let calibrationSpeed = 3.5;
 
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') {
-        const val = input.value.trim();
-        appendOutput(`guest@aethelgard:~$ ${val}`);
-        
-        const args = val.split(' ');
-        const cmd = args[0].toLowerCase();
-        const param = args[1];
+    // 控制变量
+    let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+    let moveVector = new THREE.Vector2(0, 0);
+    let cameraAngleX = 0, cameraAngleY = 0;
 
-        if (cmd === 'access') {
-          if (param === 'VOID-1998') {
-            appendOutput('\n[权限验证成功]\n正在重定向至核心档案页...\n>>> 获得下一关线索网址: ./stage2-core.html');
-          } else {
-            appendOutput('\n[拒绝访问]: 密码错误。请检查系统隐藏注释或底层文件。');
-          }
-        } else if (commands[cmd]) {
-          appendOutput(commands[cmd]);
-        } else if (val !== '') {
-          appendOutput(`未知的指令: ${val}. 输入 'help' 查看指令集。`);
-        }
+    function init() {
+      // 1. 初始化 3D 渲染器与哥特迷雾场景
+      const container = document.getElementById('canvas-container');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x05050a);
+      scene.fog = new THREE.FogExp2(0x05050a, 0.04);
 
-        input.value = '';
-        output.scrollTop = output.scrollHeight;
-      }
-    });
+      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      container.appendChild(renderer.domElement);
 
-    function appendOutput(text) {
-      output.innerText += '\n' + text;
+      // 灯光设置
+      const ambientLight = new THREE.AmbientLight(0x222233, 0.8);
+      scene.add(ambientLight);
+
+      const moonLight = new THREE.DirectionalLight(0x445577, 1.2);
+      moonLight.position.set(20, 40, 20);
+      moonLight.castShadow = true;
+      scene.add(moonLight);
+
+      // 地面（暗黑草坪）
+      const floorGeo = new THREE.PlaneGeometry(100, 100);
+      const floorMat = new THREE.MeshStandardMaterial({ color: 0x111b11, roughness: 0.9 });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      // 生成庄园建筑与障碍物
+      createObstacles();
+
+      // 2. 创建求生者 Player
+      const playerGeo = new THREE.CylinderGeometry(0.5, 0.5, 1.8);
+      const playerMat = new THREE.MeshStandardMaterial({ color: 0x3498db });
+      player = new THREE.Mesh(playerGeo, playerMat);
+      player.position.set(0, 0.9, 0);
+      player.castShadow = true;
+      scene.add(player);
+
+      // 3. 创建监管者 Hunter (带恐惧红光)
+      const hunterGeo = new THREE.CylinderGeometry(0.7, 0.7, 2.4);
+      const hunterMat = new THREE.MeshStandardMaterial({ color: 0x8e44ad });
+      hunter = new THREE.Mesh(hunterGeo, hunterMat);
+      hunter.position.set(25, 1.2, -25);
+      hunter.castShadow = true;
+
+      // 恐惧红光 (Terror Red Light)
+      const redLight = new THREE.SpotLight(0xff0000, 3, 15, Math.PI / 4, 0.5);
+      redLight.position.set(0, 1, 0);
+      redLight.target.position.set(0, 0, -5);
+      hunter.add(redLight);
+      hunter.add(redLight.target);
+      scene.add(hunter);
+
+      // 4. 生成 5 台密码机
+      const cipherPositions = [
+        { x: -15, z: -15 }, { x: 15, z: -15 },
+        { x: -20, z: 15 }, { x: 18, z: 18 }, { x: 0, z: -30 }
+      ];
+      cipherPositions.forEach(pos => {
+        const cipherGroup = createCipherMachine();
+        cipherGroup.position.set(pos.x, 0, pos.z);
+        scene.add(cipherGroup);
+        ciphers.push({ mesh: cipherGroup, progress: 0, isCompleted: false });
+      });
+
+      // 事件绑定
+      setupControls();
+      window.addEventListener('resize', onWindowResize);
+
+      animate();
     }
+
+    function createObstacles() {
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50 });
+      const wallGeo = new THREE.BoxGeometry(10, 4, 1);
+      
+      const wall1 = new THREE.Mesh(wallGeo, wallMat);
+      wall1.position.set(-8, 2, -5);
+      scene.add(wall1);
+
+      const wall2 = new THREE.Mesh(wallGeo, wallMat);
+      wall2.position.set(8, 2, 5);
+      wall2.rotation.y = Math.PI / 2;
+      scene.add(wall2);
+    }
+
+    function createCipherMachine() {
+      const group = new THREE.Group();
+      const bodyGeo = new THREE.BoxGeometry(1.5, 2, 1.2);
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x7f8c8d, metalness: 0.5 });
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      body.position.y = 1;
+      group.add(body);
+
+      // 天线与顶部灯
+      const antennaGeo = new THREE.CylinderGeometry(0.05, 0.05, 1.5);
+      const antennaMat = new THREE.MeshBasicMaterial({ color: 0xf1c40f });
+      const antenna = new THREE.Mesh(antennaGeo, antennaMat);
+      antenna.position.set(0, 2.5, 0);
+      group.add(antenna);
+
+      return group;
+    }
+
+    // --- 跨平台操作适配（键盘 + 触控摇杆）---
+    function setupControls() {
+      // 1. PC 键盘绑定
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'KeyW') moveForward = true;
+        if (e.code === 'KeyS') moveBackward = true;
+        if (e.code === 'KeyA') moveLeft = true;
+        if (e.code === 'KeyD') moveRight = true;
+        if (e.code === 'KeyE') triggerInteraction();
+      });
+      window.addEventListener('keyup', (e) => {
+        if (e.code === 'KeyW') moveForward = false;
+        if (e.code === 'KeyS') moveBackward = false;
+        if (e.code === 'KeyA') moveLeft = false;
+        if (e.code === 'KeyD') moveRight = false;
+      });
+
+      // 2. PC 鼠标拖拽旋转镜头
+      let isMouseDown = false, prevMouseX = 0, prevMouseY = 0;
+      window.addEventListener('mousedown', (e) => {
+        if(e.target.tagName !== 'BUTTON' && !e.target.closest('#joystick-container')) {
+          isMouseDown = true; prevMouseX = e.clientX; prevMouseY = e.clientY;
+        }
+      });
+      window.addEventListener('mouseup', () => isMouseDown = false);
+      window.addEventListener('mousemove', (e) => {
+        if (isMouseDown) {
+          cameraAngleX -= (e.clientX - prevMouseX) * 0.005;
+          cameraAngleY = Math.max(-0.5, Math.min(0.8, cameraAngleY + (e.clientY - prevMouseY) * 0.005));
+          prevMouseX = e.clientX; prevMouseY = e.clientY;
+        }
+      });
+
+      // 3. 移动端触控摇杆 (Joystick)
+      const joystick = document.getElementById('joystick-container');
+      const knob = document.getElementById('joystick-knob');
+      let touchId = null;
+
+      joystick.addEventListener('touchstart', (e) => {
+        const touch = e.changedTouches[0];
+        touchId = touch.identifier;
+        updateJoystick(touch);
+      }, { passive: false });
+
+      window.addEventListener('touchmove', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === touchId) {
+            updateJoystick(e.changedTouches[i]);
+          }
+        }
+      }, { passive: false });
+
+      const resetJoystick = (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === touchId) {
+            touchId = null;
+            knob.style.transform = `translate(0px, 0px)`;
+            moveVector.set(0, 0);
+          }
+        }
+      };
+      window.addEventListener('touchend', resetJoystick);
+      window.addEventListener('touchcancel', resetJoystick);
+
+      function updateJoystick(touch) {
+        const rect = joystick.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        let dx = touch.clientX - centerX;
+        let dy = touch.clientY - centerY;
+        const dist = Math.hypot(dx, dy);
+        const maxDist = rect.width / 2;
+
+        if (dist > maxDist) {
+          dx = (dx / dist) * maxDist;
+          dy = (dy / dist) * maxDist;
+        }
+        knob.style.transform = `translate(${dx}px, ${dy}px)`;
+        moveVector.set(dx / maxDist, dy / maxDist);
+      }
+
+      // 4. 按钮交互处理
+      const actionBtn = document.getElementById('action-btn');
+      actionBtn.addEventListener('click', triggerInteraction);
+      actionBtn.addEventListener('touchstart', (e) => { e.preventDefault(); triggerInteraction(); });
+    }
+
+    function triggerInteraction() {
+      if (isCalibrating) {
+        checkCalibration();
+        return;
+      }
+      if (currentCipher && !isDecoding) {
+        isDecoding = true;
+        document.getElementById('progress-container').style.display = 'block';
+        document.getElementById('action-btn').innerText = '离开';
+        startCalibrationLoop();
+      } else if (isDecoding) {
+        stopDecoding();
+      }
+    }
+
+    // --- 破译与 QTE 校准机制 ---
+    function startCalibrationLoop() {
+      if (!isDecoding) return;
+      const delay = Math.random() * 3000 + 3000;
+      setTimeout(() => {
+        if (isDecoding && !isCalibrating) triggerCalibration();
+      }, delay);
+    }
+
+    function triggerCalibration() {
+      isCalibrating = true;
+      needleAngle = 0;
+      document.getElementById('calibration-modal').style.display = 'flex';
+    }
+
+    function checkCalibration() {
+      // 指针处于 45deg 到 90deg (绿色区域) 判定为成功
+      if (needleAngle >= 45 && needleAngle <= 90) {
+        decodeProgress = Math.min(100, decodeProgress + 12);
+      } else {
+        decodeProgress = Math.max(0, decodeProgress - 8);
+        // 校准失败爆破警告，监管者直接位移逼近
+        hunter.position.lerp(player.position, 0.15);
+      }
+      endCalibration();
+    }
+
+    function endCalibration() {
+      isCalibrating = false;
+      document.getElementById('calibration-modal').style.display = 'none';
+      if (isDecoding) startCalibrationLoop();
+    }
+
+    function stopDecoding() {
+      isDecoding = false;
+      isCalibrating = false;
+      document.getElementById('progress-container').style.display = 'none';
+      document.getElementById('calibration-modal').style.display = 'none';
+      document.getElementById('action-btn').innerText = '破译';
+    }
+
+    // --- 游戏渲染循环与 AI 逻辑 ---
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // 1. 玩家移动
+      const speed = 0.12;
+      let dx = 0, dz = 0;
+
+      if (moveForward) dz -= speed;
+      if (moveBackward) dz += speed;
+      if (moveLeft) dx -= speed;
+      if (moveRight) dx += speed;
+
+      if (moveVector.length() > 0) {
+        dx = moveVector.x * speed;
+        dz = moveVector.y * speed;
+      }
+
+      if ((dx !== 0 || dz !== 0) && !isDecoding) {
+        const sin = Math.sin(cameraAngleX);
+        const cos = Math.cos(cameraAngleX);
+        player.position.x += dx * cos - dz * sin;
+        player.position.z += dx * sin + dz * cos;
+        player.rotation.y = cameraAngleX + Math.atan2(dx, -dz);
+      }
+
+      // 三维相机跟随
+      const camDist = 7;
+      camera.position.x = player.position.x + camDist * Math.sin(cameraAngleX) * Math.cos(cameraAngleY);
+      camera.position.z = player.position.z + camDist * Math.cos(cameraAngleX) * Math.cos(cameraAngleY);
+      camera.position.y = player.position.y + 1.8 + camDist * Math.sin(cameraAngleY);
+      camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+
+      // 2. 监管者 AI 追击与恐惧心跳
+      const distToHunter = player.position.distanceTo(hunter.position);
+      if (distToHunter < 18) {
+        hunter.lookAt(player.position.x, hunter.position.y, player.position.z);
+        hunter.translateZ(0.06);
+
+        // 恐惧心跳红光强度
+        const heartbeatOpacity = Math.max(0, 1 - distToHunter / 18);
+        document.getElementById('heartbeat-overlay').style.opacity = heartbeatOpacity;
+
+        if (distToHunter < 1.8 && playerHealth > 0) {
+          playerHealth--;
+          document.getElementById('player-status').innerText = playerHealth === 1 ? '受伤' : '倒地';
+          document.getElementById('player-status').style.color = playerHealth === 1 ? '#e67e22' : '#e74c3c';
+          hunter.position.set(25, 1.2, -25); // 擦刀重置位置
+        }
+      } else {
+        document.getElementById('heartbeat-overlay').style.opacity = 0;
+      }
+
+      // 3. 密码机检测与破译
+      let nearCipher = null;
+      ciphers.forEach(c => {
+        if (!c.isCompleted && player.position.distanceTo(c.mesh.position) < 3.5) {
+          nearCipher = c;
+        }
+      });
+
+      const actionBtn = document.getElementById('action-btn');
+      if (nearCipher) {
+        currentCipher = nearCipher;
+        if (!isDecoding) actionBtn.style.display = 'flex';
+      } else {
+        if (!isDecoding) {
+          currentCipher = null;
+          actionBtn.style.display = 'none';
+        }
+      }
+
+      if (isDecoding && currentCipher) {
+        decodeProgress += 0.08;
+        currentCipher.progress = decodeProgress;
+        document.getElementById('progress-bar').style.width = Math.min(100, decodeProgress) + '%';
+
+        if (decodeProgress >= 100) {
+          currentCipher.isCompleted = true;
+          remainingCiphers--;
+          document.getElementById('cipher-count').innerText = remainingCiphers;
+          currentCipher.mesh.children[1].material.color.setHex(0x2ecc71); // 亮绿色通电灯
+          stopDecoding();
+        }
+      }
+
+      // 4. 校准指针旋转
+      if (isCalibrating) {
+        needleAngle = (needleAngle + calibrationSpeed) % 360;
+        document.getElementById('calibration-needle').style.transform = `rotate(${needleAngle}deg)`;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    window.onload = init;
   </script>
 </body>
 </html>
