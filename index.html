@@ -27,7 +27,7 @@
     }
 
     .content {
-      width: min(100%, 480px);
+      width: min(100%, 560px);
       margin: 0 auto;
       text-align: center;
     }
@@ -40,7 +40,7 @@
       border-radius: 999px;
       color: #b94a38;
       background: rgba(255, 255, 255, .75);
-      font-size: 13px;
+      font-size: 15px;
       font-weight: 800;
       letter-spacing: .12em;
     }
@@ -61,9 +61,9 @@
     .intro {
       margin: 14px 0 25px;
       color: #705467;
-      font-size: 17px;
-      font-weight: 600;
-      line-height: 1.75;
+      font-size: clamp(19px, 5vw, 23px);
+      font-weight: 800;
+      line-height: 1.6;
     }
 
     .card {
@@ -77,7 +77,7 @@
     .card h2 {
       margin: 0;
       color: #623761;
-      font-size: clamp(22px, 6vw, 27px);
+      font-size: clamp(25px, 6.5vw, 32px);
       font-weight: 900;
       line-height: 1.4;
     }
@@ -85,40 +85,27 @@
     .card p {
       margin: 8px 0 20px;
       color: #765d70;
-      font-size: 15px;
+      font-size: 18px;
+      font-weight: 700;
       line-height: 1.6;
     }
 
-    .code {
-      position: relative;
-      overflow: hidden;
-      width: min(100%, 300px);
-      aspect-ratio: 1;
-      margin: 0 auto;
-      border-radius: 12px;
-      background: #fff;
-    }
-
-    .code img {
-      position: absolute;
-      top: -67.68%;
-      left: -67.99%;
+    .card img {
       display: block;
-      width: 234.15%;
-      max-width: none;
+      width: 100%;
       height: auto;
     }
 
     .save {
       display: block;
-      width: min(100%, 300px);
+      width: min(100%, 400px);
       margin: 22px auto 0;
       padding: 15px 20px;
       border-radius: 999px;
       color: #fff;
       background: linear-gradient(100deg, #e95f50, #d74f72);
       box-shadow: 0 8px 18px rgba(211, 76, 91, .25);
-      font-size: 18px;
+      font-size: 20px;
       font-weight: 800;
       text-decoration: none;
     }
@@ -139,8 +126,9 @@
       border-radius: 18px;
       color: #6f5366;
       background: rgba(255, 255, 255, .6);
-      font-size: 15px;
-      line-height: 1.8;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.7;
     }
 
     .steps strong {
@@ -170,20 +158,18 @@
     <div class="content">
       <header>
         <p class="label">手作 · 手工活咨询</p>
-        <h1>发现<span>手作</span>的乐趣</h1>
-        <p class="intro">一份手作，一份用心<br>扫码了解手工活详情</p>
+        <h1>想了解<span>手工活</span>？</h1>
+        <p class="intro">微信扫一扫<br>了解手工活详情</p>
       </header>
 
       <section class="card" aria-labelledby="scan-title">
-        <h2 id="scan-title">微信扫码进入咨询</h2>
-        <p>扫一扫，了解具体工作内容</p>
-        <div class="code">
-          <img src="handwork.png" alt="手工活咨询微信小程序码">
-        </div>
+        <h2 id="scan-title">扫码进入咨询</h2>
+        <p>识别图片中间的小程序码</p>
+        <img src="handwork.png" alt="手工制作图片及中间的微信小程序咨询码">
         <a class="save" href="handwork.png" download="手工活咨询.png">保存图片，微信扫码</a>
       </section>
 
-      <p class="steps"><strong>手机操作很简单</strong><br>保存图片 → 打开微信扫一扫<br>从相册选择图片，即可识别咨询码</p>
+      <p class="steps"><strong>手机这样操作</strong><br>保存图片 → 打开微信扫一扫<br>从相册选择图片，识别咨询码</p>
       <p class="notice">具体工作内容及合作方式，请扫码咨询了解。</p>
     </div>
   </main>
