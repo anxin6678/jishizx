@@ -3,26 +3,135 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>图片展示</title>
+  <meta name="theme-color" content="#f5f4ee">
+  <title>丰收落地页</title>
   <style>
-    body {
-      min-height: 100vh;
-      margin: 0;
-      display: grid;
-      place-items: center;
-      background: #fff;
+    * {
+      box-sizing: border-box;
     }
 
-    img {
+    body {
+      margin: 0;
+      color: #23332c;
+      background: #f5f4ee;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+
+    .page {
+      width: min(100% - 32px, 1040px);
+      margin: 0 auto;
+      padding: 48px 0 64px;
+    }
+
+    header {
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      color: #66836c;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(32px, 6vw, 48px);
+      letter-spacing: 0.08em;
+    }
+
+    .intro {
+      margin: 14px 0 0;
+      color: #66746a;
+      line-height: 1.8;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+      align-items: start;
+    }
+
+    .card {
+      overflow: hidden;
+      border: 1px solid #e3e8df;
+      border-radius: 20px;
+      background: #fff;
+      box-shadow: 0 12px 35px rgba(42, 67, 47, 0.06);
+    }
+
+    .card-heading {
+      padding: 22px 24px 18px;
+      border-bottom: 1px solid #eff2ed;
+    }
+
+    .card-heading p {
+      margin: 0 0 7px;
+      color: #77907b;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .card img {
       display: block;
-      max-width: 100%;
-      max-height: 100vh;
-      width: auto;
+      width: 100%;
       height: auto;
+    }
+
+    .notice {
+      margin: 24px 0 0;
+      color: #778379;
+      font-size: 13px;
+      line-height: 1.7;
+      text-align: center;
+    }
+
+    @media (max-width: 600px) {
+      .page {
+        padding-top: 36px;
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
 <body>
-  <img src="image.jpg" alt="手写的二维码文字">
+  <main class="page">
+    <header>
+      <p class="eyebrow">PART-TIME OPPORTUNITIES</p>
+      <h1>丰收落地页</h1>
+      <p class="intro">兼职招聘信息<br>扫码加入群聊，了解更多详情</p>
+    </header>
+
+    <section class="cards" aria-label="招聘群二维码">
+      <article class="card">
+        <div class="card-heading">
+          <p>GROUP 01</p>
+          <h2>文化公园夜班</h2>
+        </div>
+        <img src="culture-park.jpg" alt="文化公园夜班微信群二维码">
+      </article>
+      <article class="card">
+        <div class="card-heading">
+          <p>GROUP 02</p>
+          <h2>云创成都粉丝群 CD ②</h2>
+        </div>
+        <img src="yunchuang-chengdu.jpg" alt="云创成都粉丝群 CD ② 二维码">
+      </article>
+    </section>
+
+    <p class="notice">图片中的二维码有有效期，请确认是否仍然有效。</p>
+  </main>
 </body>
 </html>
