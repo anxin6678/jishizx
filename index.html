@@ -96,6 +96,15 @@
       height: auto;
     }
 
+    .card .code {
+      width: min(100%, 329px);
+      margin: 0 auto;
+    }
+
+    .showcase {
+      margin-top: 22px;
+    }
+
     .save {
       display: block;
       width: min(100%, 400px);
@@ -164,12 +173,20 @@
 
       <section class="card" aria-labelledby="scan-title">
         <h2 id="scan-title">扫码进入咨询</h2>
-        <p>识别图片中间的小程序码</p>
-        <img src="handwork.png" alt="手工制作图片及中间的微信小程序咨询码">
-        <a class="save" href="handwork.png" download="手工活咨询.png">保存图片，微信扫码</a>
+        <p>识别下方的小程序码</p>
+        <img class="code" src="consultation-code.png" width="329" height="328" alt="微信小程序咨询码" fetchpriority="high">
+        <a class="save" href="consultation-code.png" download="手工活咨询码.png">保存图片，微信扫码</a>
       </section>
 
       <p class="steps"><strong>手机这样操作</strong><br>保存图片 → 打开微信扫一扫<br>从相册选择图片，识别咨询码</p>
+      <section class="card showcase" aria-labelledby="showcase-title">
+        <h2 id="showcase-title">手工作品展示</h2>
+        <p>了解手工制作和作品</p>
+        <picture>
+          <source srcset="handwork.webp" type="image/webp">
+          <img src="handwork.png" width="768" height="768" alt="手工制作、作品及微信小程序咨询码" loading="lazy" decoding="async">
+        </picture>
+      </section>
       <p class="notice">具体工作内容及合作方式，请扫码咨询了解。</p>
     </div>
   </main>
